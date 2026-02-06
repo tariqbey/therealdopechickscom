@@ -2,9 +2,8 @@ import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import { Play, Pause, Maximize, Minimize, Volume2, VolumeX } from "lucide-react";
+import { Play, Pause, Maximize, Minimize, Volume2, VolumeX, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 
 type VideoMode = "standard" | "360" | "vr180";
 
@@ -57,15 +56,43 @@ function VideoSphere({ video, mode }: { video: HTMLVideoElement; mode: "360" | "
   );
 }
 
-function ImmersiveControls({ mode }: { mode: "360" | "vr180" }) {
+function ImmersiveControls({ mode, gyroEnabled }: { mode: "360" | "vr180"; gyroEnabled: boolean }) {
   const { camera } = useThree();
+  const controlsRef = useRef<any>(null);
+  const euler = useRef(new THREE.Euler(0, 0, 0, "YXZ"));
 
   useEffect(() => {
     camera.position.set(0, 0, 0.1);
   }, [camera]);
 
+  // Gyroscope device orientation
+  useEffect(() => {
+    if (!gyroEnabled) return;
+    const onOrientation = (e: DeviceOrientationEvent) => {
+      const alpha = THREE.MathUtils.degToRad(e.alpha || 0);
+      const beta = THREE.MathUtils.degToRad(e.beta || 0);
+      const gamma = THREE.MathUtils.degToRad(e.gamma || 0);
+
+      euler.current.set(beta, alpha, -gamma, "YXZ");
+      camera.quaternion.setFromEuler(euler.current);
+
+      // Rotate to landscape-aware orientation
+      const q = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
+      camera.quaternion.multiply(q);
+
+      // Disable orbit controls when gyro is active
+      if (controlsRef.current) controlsRef.current.enabled = false;
+    };
+    window.addEventListener("deviceorientation", onOrientation, true);
+    return () => {
+      window.removeEventListener("deviceorientation", onOrientation, true);
+      if (controlsRef.current) controlsRef.current.enabled = true;
+    };
+  }, [gyroEnabled, camera]);
+
   return (
     <OrbitControls
+      ref={controlsRef}
       enableZoom={false}
       enablePan={false}
       enableDamping
@@ -91,7 +118,34 @@ const VideoPlayer = ({ src, mode, poster }: VideoPlayerProps) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [gyroEnabled, setGyroEnabled] = useState(false);
+  const [gyroAvailable, setGyroAvailable] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  // Detect gyroscope availability
+  useEffect(() => {
+    if (typeof DeviceOrientationEvent !== "undefined") {
+      setGyroAvailable(true);
+    }
+  }, []);
+
+  const toggleGyro = useCallback(async () => {
+    if (gyroEnabled) {
+      setGyroEnabled(false);
+      return;
+    }
+    // iOS 13+ requires permission
+    if (typeof (DeviceOrientationEvent as any).requestPermission === "function") {
+      try {
+        const perm = await (DeviceOrientationEvent as any).requestPermission();
+        if (perm === "granted") setGyroEnabled(true);
+      } catch {
+        // denied
+      }
+    } else {
+      setGyroEnabled(true);
+    }
+  }, [gyroEnabled]);
 
   // Create off-screen video for immersive modes
   const immersiveVideo = useMemo(() => {
@@ -211,7 +265,7 @@ const VideoPlayer = ({ src, mode, poster }: VideoPlayerProps) => {
             gl={{ antialias: true, toneMapping: THREE.NoToneMapping }}
           >
             <VideoSphere video={immersiveVideo} mode={mode} />
-            <ImmersiveControls mode={mode} />
+            <ImmersiveControls mode={mode} gyroEnabled={gyroEnabled} />
           </Canvas>
         </div>
       )}
@@ -276,6 +330,17 @@ const VideoPlayer = ({ src, mode, poster }: VideoPlayerProps) => {
             </div>
 
             <div className="flex items-center gap-2">
+              {mode !== "standard" && gyroAvailable && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`h-8 w-8 ${gyroEnabled ? "text-accent" : "text-foreground hover:text-foreground/80"}`}
+                  onClick={toggleGyro}
+                  title={gyroEnabled ? "Disable gyroscope" : "Enable gyroscope"}
+                >
+                  <Smartphone className="h-4 w-4" />
+                </Button>
+              )}
               {mode !== "standard" && (
                 <span className="text-xs text-accent font-medium px-2 py-0.5 rounded bg-accent/10 border border-accent/20">
                   {mode === "360" ? "360°" : "VR 180°"}
