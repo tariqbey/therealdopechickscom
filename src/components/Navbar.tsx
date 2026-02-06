@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Menu, X, Search } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/logo.png";
 
 const navLinks = [
-  { label: "Explore", href: "#explore" },
-  { label: "Creators", href: "#creators" },
-  { label: "AI Studio", href: "#ai-studio" },
-  { label: "Get BREAD", href: "#bread" },
+  { label: "Explore", href: "/#explore" },
+  { label: "Creators", href: "/#creators" },
+  { label: "AI Studio", href: "/ai-studio" },
+  { label: "Get BREAD", href: "/#bread" },
 ];
 
 const Navbar = () => {
