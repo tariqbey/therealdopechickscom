@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Menu, X, Search, LogOut, Coins } from "lucide-react";
+import { Menu, X, Search, LogOut, Coins, Settings } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -51,6 +51,9 @@ const Navbar = () => {
                 <span className="text-xs font-bold text-gradient-gold">{wallet?.balance ?? 0}</span>
               </div>
               <span className="text-sm text-muted-foreground">{profile?.display_name || user.email}</span>
+              <Button variant="ghost" size="icon" onClick={() => navigate("/settings")} className="text-muted-foreground hover:text-foreground">
+                <Settings className="h-4 w-4" />
+              </Button>
               <Button variant="ghost" size="icon" onClick={signOut} className="text-muted-foreground hover:text-foreground">
                 <LogOut className="h-4 w-4" />
               </Button>

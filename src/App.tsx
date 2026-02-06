@@ -8,6 +8,8 @@ import Index from "./pages/Index";
 import CreatorProfile from "./pages/CreatorProfile";
 import AIStudio from "./pages/AIStudio";
 import Auth from "./pages/Auth";
+import ProfileSettings from "./pages/ProfileSettings";
+import GenerationHistory from "./pages/GenerationHistory";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +26,8 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/creator/:handle" element={<CreatorProfile />} />
             <Route path="/ai-studio" element={<AIStudio />} />
+            <Route path="/settings" element={<ProfileSettings />} />
+            <Route path="/history" element={<GenerationHistory />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
