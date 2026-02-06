@@ -14,7 +14,141 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      ai_generations: {
+        Row: {
+          aspect_ratio: string | null
+          cost: number
+          created_at: string
+          generation_type: string
+          id: string
+          metadata: Json | null
+          prompt: string | null
+          result_url: string | null
+          status: string
+          style_preset: string | null
+          user_id: string
+        }
+        Insert: {
+          aspect_ratio?: string | null
+          cost?: number
+          created_at?: string
+          generation_type: string
+          id?: string
+          metadata?: Json | null
+          prompt?: string | null
+          result_url?: string | null
+          status?: string
+          style_preset?: string | null
+          user_id: string
+        }
+        Update: {
+          aspect_ratio?: string | null
+          cost?: number
+          created_at?: string
+          generation_type?: string
+          id?: string
+          metadata?: Json | null
+          prompt?: string | null
+          result_url?: string | null
+          status?: string
+          style_preset?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          age_verified: boolean
+          avatar_url: string | null
+          bio: string | null
+          created_at: string
+          date_of_birth: string | null
+          display_name: string | null
+          id: string
+          is_creator: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          age_verified?: boolean
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          display_name?: string | null
+          id?: string
+          is_creator?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          age_verified?: boolean
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          display_name?: string | null
+          id?: string
+          is_creator?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallet_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          id: string
+          reference_id: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          reference_id?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          reference_id?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallets: {
+        Row: {
+          balance: number
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
