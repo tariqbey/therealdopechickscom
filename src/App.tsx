@@ -10,6 +10,7 @@ import AIStudio from "./pages/AIStudio";
 import Auth from "./pages/Auth";
 import ProfileSettings from "./pages/ProfileSettings";
 import GenerationHistory from "./pages/GenerationHistory";
+import VideoPlayerPage from "./pages/VideoPlayerPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/ai-studio" element={<AIStudio />} />
             <Route path="/settings" element={<ProfileSettings />} />
             <Route path="/history" element={<GenerationHistory />} />
+            <Route path="/player" element={<VideoPlayerPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
