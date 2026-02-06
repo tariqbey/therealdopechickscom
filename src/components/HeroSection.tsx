@@ -1,16 +1,19 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Play, Sparkles } from "lucide-react";
-import heroImage from "@/assets/hero-image.png";
+import dopeVideo from "@/assets/dope.mp4";
 
 const HeroSection = () => {
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
-      {/* Background image with overlay */}
+      {/* Background video with overlay */}
       <div className="absolute inset-0">
-        <img
-          src={heroImage}
-          alt="Dope Chicks"
+        <video
+          src={dopeVideo}
+          autoPlay
+          loop
+          muted
+          playsInline
           className="w-full h-full object-cover object-center"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-background/40" />
