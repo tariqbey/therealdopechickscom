@@ -10,6 +10,7 @@ const navLinks = [
   { label: "Explore", href: "/#explore" },
   { label: "Creators", href: "/#creators" },
   { label: "AI Studio", href: "/ai-studio" },
+  { label: "Player", href: "/player" },
   { label: "Get BREAD", href: "/#bread" },
 ];
 
