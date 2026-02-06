@@ -18,7 +18,7 @@ const AuthPage = () => {
   const [isCreator, setIsCreator] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -32,7 +32,19 @@ const AuthPage = () => {
         toast({ title: "Login failed", description: error, variant: "destructive" });
       } else {
         toast({ title: "Welcome back!" });
-        navigate("/");
+        // Check if user is admin and redirect accordingly
+        const { data: session } = await (await import("@/integrations/supabase/client")).supabase.auth.getSession();
+        if (session?.session?.user) {
+          const { data: roleData } = await (await import("@/integrations/supabase/client")).supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", session.session.user.id)
+            .eq("role", "admin")
+            .maybeSingle();
+          navigate(roleData ? "/admin" : "/");
+        } else {
+          navigate("/");
+        }
       }
     } else {
       const { error } = await signUp(email, password, displayName, dateOfBirth, isCreator);
