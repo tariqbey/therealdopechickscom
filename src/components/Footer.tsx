@@ -6,7 +6,7 @@ const Footer = () => {
       <div className="container mx-auto px-4">
         <div className="grid md:grid-cols-4 gap-8 mb-8">
           <div>
-            <img src={logo} alt="Dope Chicks" className="h-8 mb-3" />
+            <img src={logo} alt="Dope Chicks" className="h-24 w-auto mb-3 mix-blend-screen drop-shadow-[0_0_15px_hsl(42,80%,55%,0.3)]" />
             <p className="text-xs text-muted-foreground">
               The premium platform for exclusive content and AI-powered creation.
             </p>
