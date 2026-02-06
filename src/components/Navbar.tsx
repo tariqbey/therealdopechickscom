@@ -22,9 +22,9 @@ const Navbar = () => {
       transition={{ duration: 0.5 }}
       className="fixed top-0 left-0 right-0 z-50 glass border-b border-border"
     >
-      <div className="container mx-auto flex items-center justify-between h-16 px-4">
+      <div className="container mx-auto flex items-center justify-between h-20 px-4">
         <a href="/" className="flex items-center gap-2">
-          <img src={logo} alt="Dope Chicks" className="h-10 w-auto" />
+          <img src={logo} alt="Dope Chicks" className="h-16 w-auto mix-blend-screen drop-shadow-[0_0_15px_hsl(42,80%,55%,0.3)]" />
         </a>
 
         {/* Desktop Nav */}
