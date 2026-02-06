@@ -9,6 +9,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/logo.png";
+import AdminUsersTab from "@/components/admin/AdminUsersTab";
+import AdminAnalyticsTab from "@/components/admin/AdminAnalyticsTab";
+import AdminContentTab from "@/components/admin/AdminContentTab";
 
 interface Stats {
   totalUsers: number;
@@ -53,6 +56,11 @@ const AdminDashboard = () => {
     checkAdmin();
   }, [user, loading, navigate]);
 
+  const fetchUsers = async () => {
+    const { data } = await supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(50);
+    setUsers((data as UserRow[]) ?? []);
+  };
+
   useEffect(() => {
     if (!isAdmin) return;
     const fetchStats = async () => {
@@ -68,10 +76,6 @@ const AdminDashboard = () => {
         totalGenerations: gensRes.count ?? 0,
         totalBreadCirculating: (walletsRes.data ?? []).reduce((s, w) => s + (w.balance || 0), 0),
       });
-    };
-    const fetchUsers = async () => {
-      const { data } = await supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(50);
-      setUsers((data as UserRow[]) ?? []);
     };
     fetchStats();
     fetchUsers();
@@ -231,49 +235,14 @@ const AdminDashboard = () => {
           )}
 
           {activeTab === "users" && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <div className="rounded-xl bg-gradient-card border border-border p-6">
-                <h3 className="text-lg font-display font-bold text-foreground mb-4">All Users ({users.length})</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-muted-foreground text-left border-b border-border">
-                        <th className="pb-3 font-medium">User</th>
-                        <th className="pb-3 font-medium">Type</th>
-                        <th className="pb-3 font-medium">Joined</th>
-                        <th className="pb-3 font-medium">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {users.map((u) => (
-                        <tr key={u.id} className="text-foreground">
-                          <td className="py-3 flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground">
-                              {(u.display_name || "?")[0].toUpperCase()}
-                            </div>
-                            {u.display_name || "Unknown"}
-                          </td>
-                          <td className="py-3">
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${u.is_creator ? "bg-accent/10 text-accent" : "bg-primary/10 text-primary"}`}>
-                              {u.is_creator ? "Creator" : "Fan"}
-                            </span>
-                          </td>
-                          <td className="py-3 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
-                          <td className="py-3">
-                            <Button variant="ghost" size="sm" className="h-7 text-xs">
-                              <Eye className="h-3 w-3 mr-1" /> View
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </motion.div>
+            <AdminUsersTab users={users} onRefresh={fetchUsers} />
           )}
 
-          {(activeTab === "content" || activeTab === "analytics" || activeTab === "security" || activeTab === "settings") && (
+          {activeTab === "content" && <AdminContentTab />}
+
+          {activeTab === "analytics" && <AdminAnalyticsTab />}
+
+          {(activeTab === "security" || activeTab === "settings") && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-center h-64">
               <div className="text-center">
                 <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
