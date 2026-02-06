@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Menu, X, Search } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Menu, X, Search, LogOut, Coins } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 import logo from "@/assets/logo.png";
 
 const navLinks = [
@@ -14,6 +15,8 @@ const navLinks = [
 
 const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user, profile, wallet, signOut } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <motion.nav
@@ -41,20 +44,29 @@ const Navbar = () => {
         </div>
 
         <div className="hidden md:flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-            <Search className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" className="text-sm">Log In</Button>
-          <Button className="bg-gradient-purple text-primary-foreground text-sm font-semibold hover:opacity-90">
-            Sign Up Free
-          </Button>
+          {user ? (
+            <>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted border border-border">
+                <Coins className="h-3.5 w-3.5 text-accent" />
+                <span className="text-xs font-bold text-gradient-gold">{wallet?.balance ?? 0}</span>
+              </div>
+              <span className="text-sm text-muted-foreground">{profile?.display_name || user.email}</span>
+              <Button variant="ghost" size="icon" onClick={signOut} className="text-muted-foreground hover:text-foreground">
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" className="text-sm" onClick={() => navigate("/auth")}>Log In</Button>
+              <Button className="bg-gradient-purple text-primary-foreground text-sm font-semibold hover:opacity-90" onClick={() => navigate("/auth")}>
+                Sign Up Free
+              </Button>
+            </>
+          )}
         </div>
 
         {/* Mobile toggle */}
-        <button
-          className="md:hidden text-foreground"
-          onClick={() => setMobileOpen(!mobileOpen)}
-        >
+        <button className="md:hidden text-foreground" onClick={() => setMobileOpen(!mobileOpen)}>
           {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </button>
       </div>
@@ -72,14 +84,25 @@ const Navbar = () => {
                 key={link.label}
                 href={link.href}
                 className="py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setMobileOpen(false)}
               >
                 {link.label}
               </a>
             ))}
-            <div className="flex gap-2 pt-2">
-              <Button variant="ghost" className="flex-1 text-sm">Log In</Button>
-              <Button className="flex-1 bg-gradient-purple text-primary-foreground text-sm font-semibold">Sign Up</Button>
-            </div>
+            {user ? (
+              <div className="flex items-center justify-between pt-2">
+                <div className="flex items-center gap-2">
+                  <Coins className="h-4 w-4 text-accent" />
+                  <span className="text-sm font-bold text-gradient-gold">{wallet?.balance ?? 0} BREAD</span>
+                </div>
+                <Button variant="ghost" size="sm" onClick={signOut}>Sign Out</Button>
+              </div>
+            ) : (
+              <div className="flex gap-2 pt-2">
+                <Button variant="ghost" className="flex-1 text-sm" onClick={() => { navigate("/auth"); setMobileOpen(false); }}>Log In</Button>
+                <Button className="flex-1 bg-gradient-purple text-primary-foreground text-sm font-semibold" onClick={() => { navigate("/auth"); setMobileOpen(false); }}>Sign Up</Button>
+              </div>
+            )}
           </div>
         </motion.div>
       )}
