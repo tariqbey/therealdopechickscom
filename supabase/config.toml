@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.generate-ai]
 verify_jwt = false
+
+[functions.admin-actions]
+verify_jwt = false
