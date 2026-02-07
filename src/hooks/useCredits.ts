@@ -32,6 +32,23 @@ export const useCredits = () => {
     }
   };
 
+  const verifySession = async (sessionId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("verify-session", {
+        body: { sessionId },
+      });
+      if (error) throw error;
+      if (data?.credited) {
+        await refreshCreditWallet();
+        if (!data.already_processed) {
+          toast({ title: "Credits added! ✨", description: "Your credit balance has been updated." });
+        }
+      }
+    } catch (err: any) {
+      console.error("Credits verify error:", err);
+    }
+  };
+
   const spendCredits = async (amount: number, description: string): Promise<boolean> => {
     if (!creditWallet || creditWallet.balance < amount) {
       toast({ title: "Insufficient Credits", description: `You need ${amount} credits but have ${creditWallet?.balance ?? 0}.`, variant: "destructive" });
@@ -56,6 +73,7 @@ export const useCredits = () => {
     creditBalance: creditWallet?.balance ?? 0,
     purchaseCredits,
     spendCredits,
+    verifySession,
     refreshCreditWallet,
   };
 };

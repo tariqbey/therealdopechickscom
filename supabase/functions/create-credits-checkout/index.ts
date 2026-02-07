@@ -38,7 +38,7 @@ serve(async (req) => {
       customer_email: customerId ? undefined : user.email,
       line_items: [{ price: priceId, quantity: 1 }],
       mode: "payment",
-      success_url: `${req.headers.get("origin")}/ai-studio?credits_purchase=success`,
+      success_url: `${req.headers.get("origin")}/ai-studio?credits_purchase=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${req.headers.get("origin")}/ai-studio?credits_purchase=canceled`,
       metadata: { user_id: user.id, price_id: priceId, currency_type: "credits" },
     });

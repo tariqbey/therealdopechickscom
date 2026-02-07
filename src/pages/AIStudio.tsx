@@ -7,6 +7,7 @@ import BuyCreditsModal from "@/components/BuyCreditsModal";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCredits } from "@/hooks/useCredits";
+import { useWallet } from "@/hooks/useWallet";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -95,10 +96,27 @@ const AIStudioPage = () => {
   const [uploadTarget, setUploadTarget] = useState<"video" | "image">("video");
 
   const { user, profile } = useAuth();
-  const { creditBalance } = useCredits();
+  const { creditBalance, verifySession: verifyCreditsSession } = useCredits();
+  const { verifySession: verifyBreadSession } = useWallet();
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Auto-verify payment sessions on return from Stripe
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
+    if (!sessionId || !user) return;
+
+    if (params.get("credits_purchase") === "success") {
+      verifyCreditsSession(sessionId);
+    } else if (params.get("purchase") === "success") {
+      verifyBreadSession(sessionId);
+    }
+
+    // Clean URL
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }, [user]);
 
   // Handle incoming state from generation history
   useEffect(() => {
