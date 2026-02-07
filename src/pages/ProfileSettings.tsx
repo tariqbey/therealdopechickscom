@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useFormPersist } from "@/hooks/useFormPersist";
-import { User, Camera, Save, ArrowLeft, Crown, ExternalLink, Sparkles, ImageIcon, Loader2 } from "lucide-react";
+import { User, Camera, Save, ArrowLeft, Crown, ExternalLink, Sparkles, ImageIcon, Loader2, Shield } from "lucide-react";
 import { PushNotificationSettings } from "@/components/PushNotificationSettings";
 import ImageCropModal from "@/components/ImageCropModal";
 
@@ -28,8 +28,21 @@ const ProfileSettings = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [generatingBio, setGeneratingBio] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [avatarUrl, setAvatarUrl] = useFormPersist("profile_avatarUrl", profile?.avatar_url || "");
   const [coverUrl, setCoverUrl] = useFormPersist("profile_coverUrl", (profile as any)?.cover_url || "");
+
+  // Check admin role
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .maybeSingle()
+      .then(({ data }) => setIsAdmin(!!data));
+  }, [user]);
 
   // Sync from profile when it loads/changes
   useEffect(() => {
@@ -301,7 +314,19 @@ const ProfileSettings = () => {
           {/* Push Notifications */}
           <PushNotificationSettings />
         </motion.div>
-      </div>
+            {/* Admin Link */}
+            {isAdmin && (
+              <div className="mt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => navigate("/admin")}
+                  className="w-full border-destructive/30 text-destructive hover:bg-destructive/10"
+                >
+                  <Shield className="h-4 w-4 mr-2" /> Admin Panel
+                </Button>
+              </div>
+            )}
+          </div>
       <Footer />
 
       {/* Image Crop Modal */}
