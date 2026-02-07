@@ -107,7 +107,7 @@ serve(async (req) => {
           apiKey = ATLAS_API_KEY;
 
           requestBody = {
-            model: "atlascloud/qwen-image/edit-plus",
+            model: "alibaba/qwen-image/edit-plus-20251215",
             messages: [{
               role: "user",
               content: [
@@ -166,6 +166,9 @@ serve(async (req) => {
         throw new Error("Invalid generation type");
     }
 
+    const requestJson = JSON.stringify(requestBody);
+    console.log("Sending request to:", apiUrl, "body length:", requestJson.length, "model:", (requestBody as any).model);
+
     // Call the appropriate API
     const aiResponse = await fetch(apiUrl, {
       method: "POST",
@@ -173,16 +176,21 @@ serve(async (req) => {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(requestBody),
+      body: requestJson,
     });
 
     if (!aiResponse.ok) {
-      let errorText = "";
-      try { errorText = await aiResponse.text(); } catch { errorText = "Could not read error body"; }
-      console.error("AI API error:", aiResponse.status, errorText);
-      console.error("Request was:", JSON.stringify({ url: apiUrl, model: (requestBody as any).model }));
+      let errorDetail: string;
+      try {
+        const errorJson = await aiResponse.json();
+        errorDetail = JSON.stringify(errorJson);
+      } catch {
+        try { errorDetail = await aiResponse.text(); } catch { errorDetail = "Could not read error body"; }
+      }
+      console.error("AI API error:", aiResponse.status, errorDetail);
+      console.error("Request body sent:", requestJson.substring(0, 500));
       await supabase.from("ai_generations").update({ status: "failed" }).eq("id", generation.id);
-      return new Response(JSON.stringify({ error: `AI generation failed: ${aiResponse.status}`, details: errorText }), {
+      return new Response(JSON.stringify({ error: `AI generation failed: ${aiResponse.status}`, details: errorDetail }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
