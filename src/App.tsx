@@ -14,7 +14,9 @@ import VideoPlayerPage from "./pages/VideoPlayerPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import Install from "./pages/Install";
 import AvatarBuilder from "./pages/AvatarBuilder";
+import CreatorTiers from "./pages/CreatorTiers";
 import NotFound from "./pages/NotFound";
+import PWAInstallBanner from "./components/PWAInstallBanner";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +33,7 @@ const App = () => (
             <Route path="/creator/:handle" element={<CreatorProfile />} />
             <Route path="/ai-studio" element={<AIStudio />} />
             <Route path="/settings" element={<ProfileSettings />} />
+            <Route path="/settings/tiers" element={<CreatorTiers />} />
             <Route path="/history" element={<GenerationHistory />} />
             <Route path="/player" element={<VideoPlayerPage />} />
             <Route path="/admin" element={<AdminDashboard />} />
@@ -39,6 +42,7 @@ const App = () => (
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          <PWAInstallBanner />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
