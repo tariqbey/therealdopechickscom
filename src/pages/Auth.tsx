@@ -6,16 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useFormPersist } from "@/hooks/useFormPersist";
 import { Sparkles, Eye, EyeOff, User, Camera, Upload, Loader2 } from "lucide-react";
 import logo from "@/assets/logo.png";
 
 const AuthPage = () => {
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const [email, setEmail] = useState("");
+  const [mode, setMode] = useFormPersist<"login" | "signup">("auth_mode", "login");
+  const [email, setEmail] = useFormPersist("auth_email", "");
   const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [dateOfBirth, setDateOfBirth] = useState("");
-  const [isCreator, setIsCreator] = useState(false);
+  const [displayName, setDisplayName] = useFormPersist("auth_displayName", "");
+  const [dateOfBirth, setDateOfBirth] = useFormPersist("auth_dob", "");
+  const [isCreator, setIsCreator] = useFormPersist("auth_isCreator", false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [idFile, setIdFile] = useState<File | null>(null);

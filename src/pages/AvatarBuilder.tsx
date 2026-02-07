@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Sparkles } from "lucide-react";
 import BuyCreditsModal from "@/components/BuyCreditsModal";
+import { useFormPersist } from "@/hooks/useFormPersist";
 
 const TOTAL_STEPS = 5;
 const AVATAR_COST = 30;
@@ -23,15 +24,15 @@ const AVATAR_COST = 30;
 const stepLabels = ["Basic info", "Facial features", "Body features", "Style & vibe", "Review & generate"];
 
 const AvatarBuilderPage = () => {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useFormPersist("avatar_step", 1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [showBuyModal, setShowBuyModal] = useState(false);
 
-  const [basicInfo, setBasicInfo] = useState<BasicInfoData>({ gender: "Female", age: "", ethnicity: "" });
-  const [facialFeatures, setFacialFeatures] = useState<FacialFeaturesData>({ hairColour: "", hairLength: "", eyeColour: "", eyeShape: "" });
-  const [bodyFeatures, setBodyFeatures] = useState<BodyFeaturesData>({ bodyType: "", skinTone: "", breastSize: "", hipsSize: "", additionalDetails: "" });
-  const [style, setStyle] = useState<StyleData>({ outfit: "", setting: "", mood: "", artStyle: "" });
+  const [basicInfo, setBasicInfo] = useFormPersist<BasicInfoData>("avatar_basicInfo", { gender: "Female", age: "", ethnicity: "" });
+  const [facialFeatures, setFacialFeatures] = useFormPersist<FacialFeaturesData>("avatar_facialFeatures", { hairColour: "", hairLength: "", eyeColour: "", eyeShape: "" });
+  const [bodyFeatures, setBodyFeatures] = useFormPersist<BodyFeaturesData>("avatar_bodyFeatures", { bodyType: "", skinTone: "", breastSize: "", hipsSize: "", additionalDetails: "" });
+  const [style, setStyle] = useFormPersist<StyleData>("avatar_style", { outfit: "", setting: "", mood: "", artStyle: "" });
 
   const { user } = useAuth();
   const { creditBalance } = useCredits();
