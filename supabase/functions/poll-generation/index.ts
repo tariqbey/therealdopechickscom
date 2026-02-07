@@ -36,15 +36,19 @@ serve(async (req) => {
     const data = await response.json();
     console.log("Poll result:", JSON.stringify(data).substring(0, 500));
 
-    // Atlas result format: { id, urls: { get: "url" }, model, output: ["video_url"], status }
-    const status = data.status || "processing";
-    const output = data.output || [];
-    const videoUrl = Array.isArray(output) && output.length > 0 ? output[0] : 
-                     (data.urls?.get ? data.urls.get : null);
+    // Atlas wraps in { code, message, data: { status, outputs, ... } }
+    const inner = data.data || data;
+    const status = inner.status || "processing";
+    const outputs = inner.outputs || inner.output || [];
+    const videoUrl = Array.isArray(outputs) && outputs.length > 0 ? outputs[0] : null;
+
+    // Normalize: Atlas uses "completed", map to "succeeded" for frontend
+    const normalizedStatus = (status === "completed" || status === "succeeded") ? "succeeded" : 
+                             (status === "failed" || status === "error") ? "failed" : "processing";
 
     return new Response(JSON.stringify({
-      status: status === "succeeded" ? "succeeded" : "processing",
-      videoUrl: status === "succeeded" ? videoUrl : null,
+      status: normalizedStatus,
+      videoUrl: normalizedStatus === "succeeded" ? videoUrl : null,
       raw: data,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

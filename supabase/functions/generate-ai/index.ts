@@ -150,7 +150,7 @@ serve(async (req) => {
             model: "alibaba/wan-2.2-spicy/image-to-video",
             image: sourceImageUrl,
             prompt: videoPrompt,
-            enable_sync_mode: true,
+            ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}),
           };
         } else {
           // No source image: generate a still frame via Lovable AI
