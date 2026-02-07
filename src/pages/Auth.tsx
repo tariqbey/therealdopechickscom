@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Sparkles, Eye, EyeOff, User, Camera } from "lucide-react";
+import { Sparkles, Eye, EyeOff, User, Camera, Upload, Loader2 } from "lucide-react";
 import logo from "@/assets/logo.png";
 
 const AuthPage = () => {
@@ -18,6 +18,8 @@ const AuthPage = () => {
   const [isCreator, setIsCreator] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [idFile, setIdFile] = useState<File | null>(null);
+  const [uploadingId, setUploadingId] = useState(false);
   const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -51,7 +53,21 @@ const AuthPage = () => {
       if (error) {
         toast({ title: "Signup failed", description: error, variant: "destructive" });
       } else {
-        toast({ title: "Account created!", description: "Check your email to verify your account." });
+        // Upload ID photo if provided
+        if (idFile) {
+          setUploadingId(true);
+          const { data: { session } } = await (await import("@/integrations/supabase/client")).supabase.auth.getSession();
+          if (session?.user) {
+            const ext = idFile.name.split(".").pop();
+            const path = `${session.user.id}/id.${ext}`;
+            const { supabase: sb } = await import("@/integrations/supabase/client");
+            await sb.storage.from("id-documents").upload(path, idFile, { upsert: true });
+            const { data: { publicUrl } } = sb.storage.from("id-documents").getPublicUrl(path);
+            await sb.from("profiles").update({ id_photo_url: publicUrl } as any).eq("user_id", session.user.id);
+          }
+          setUploadingId(false);
+        }
+        toast({ title: "Account created!", description: "Your account is pending admin approval. You'll be notified when approved." });
       }
     }
 
@@ -139,6 +155,22 @@ const AuthPage = () => {
                     >
                       <Camera className="h-4 w-4" /> Creator
                     </button>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs font-bold text-muted-foreground">Photo ID (required for approval)</Label>
+                  <div className="mt-1">
+                    <label className="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-dashed border-border text-sm cursor-pointer hover:border-primary/30 transition-colors">
+                      <Upload className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">{idFile ? idFile.name : "Upload a valid photo ID"}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => setIdFile(e.target.files?.[0] || null)}
+                      />
+                    </label>
+                    <p className="text-[10px] text-muted-foreground mt-1">Government-issued ID to verify you are 18+. Max 10MB.</p>
                   </div>
                 </div>
               </>

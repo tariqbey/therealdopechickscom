@@ -15,6 +15,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import Install from "./pages/Install";
 import AvatarBuilder from "./pages/AvatarBuilder";
 import CreatorTiers from "./pages/CreatorTiers";
+import Messages from "./pages/Messages";
 import NotFound from "./pages/NotFound";
 import PWAInstallBanner from "./components/PWAInstallBanner";
 
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/install" element={<Install />} />
             <Route path="/avatar-builder" element={<AvatarBuilder />} />
+            <Route path="/messages" element={<Messages />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

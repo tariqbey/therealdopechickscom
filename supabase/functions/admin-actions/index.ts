@@ -133,6 +133,24 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "update_approval") {
+      const { user_id, approval_status } = params;
+      if (!["approved", "rejected", "pending"].includes(approval_status)) {
+        return new Response(JSON.stringify({ error: "Invalid status" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { error } = await adminClient
+        .from("profiles")
+        .update({ approval_status })
+        .eq("user_id", user_id);
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Unknown action" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
