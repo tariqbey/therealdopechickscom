@@ -34,9 +34,12 @@ serve(async (req) => {
     const body = await req.json();
     const { type, prompt, style, aspectRatio, characterName, characterDescription, characterStyle, motionPreset, duration, quality, sourceImageUrl, motionDescription } = body;
 
-    // Determine cost
+    // Determine cost and API cost tracking
     const costs: Record<string, number> = { image: 25, character: 30, video: 75 };
+    const apiCostsCents: Record<string, number> = { image: 3, character: 5, video: 50 };
+    const platformFeeCents = 15;
     const cost = costs[type] || 25;
+    const apiCostCents = apiCostsCents[type] || 3;
 
     // Check if user is admin (unlimited BREAD)
     const { data: roleData } = await supabase
@@ -61,7 +64,7 @@ serve(async (req) => {
       });
     }
 
-    // Create generation record
+    // Create generation record with cost tracking
     const { data: generation, error: genError } = await supabase
       .from("ai_generations")
       .insert({
@@ -70,7 +73,9 @@ serve(async (req) => {
         prompt: prompt || characterDescription || motionDescription,
         style_preset: style || characterStyle,
         aspect_ratio: aspectRatio,
-        cost,
+        cost: isAdmin ? 0 : cost,
+        api_cost_cents: apiCostCents,
+        platform_fee_cents: platformFeeCents,
         status: "processing",
         metadata: body,
       })

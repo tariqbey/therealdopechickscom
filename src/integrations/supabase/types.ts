@@ -16,12 +16,14 @@ export type Database = {
     Tables: {
       ai_generations: {
         Row: {
+          api_cost_cents: number
           aspect_ratio: string | null
           cost: number
           created_at: string
           generation_type: string
           id: string
           metadata: Json | null
+          platform_fee_cents: number
           prompt: string | null
           result_url: string | null
           status: string
@@ -29,12 +31,14 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          api_cost_cents?: number
           aspect_ratio?: string | null
           cost?: number
           created_at?: string
           generation_type: string
           id?: string
           metadata?: Json | null
+          platform_fee_cents?: number
           prompt?: string | null
           result_url?: string | null
           status?: string
@@ -42,12 +46,14 @@ export type Database = {
           user_id: string
         }
         Update: {
+          api_cost_cents?: number
           aspect_ratio?: string | null
           cost?: number
           created_at?: string
           generation_type?: string
           id?: string
           metadata?: Json | null
+          platform_fee_cents?: number
           prompt?: string | null
           result_url?: string | null
           status?: string

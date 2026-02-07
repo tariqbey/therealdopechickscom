@@ -10,14 +10,37 @@ import { useWallet } from "@/hooks/useWallet";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
   Sparkles, Image as ImageIcon, Video, Wand2, User,
-  Settings2, Coins, History, Download, Upload, Layers, X,
+  Coins, History, Upload, Layers, X, ShieldAlert,
 } from "lucide-react";
 
 type StudioTab = "image" | "character" | "video";
 
 const stylePresets = ["Glamour", "Artistic", "Realistic", "Fantasy", "Cinematic", "Noir", "Pop Art", "Ethereal"];
 const aspectRatios = ["1:1", "4:5", "9:16", "16:9"];
+
+// Cost structure: API cost (cents) + $0.15 surcharge = total cost in cents → converted to BREAD
+// 1 BREAD ≈ $0.01 (500 BREAD = $4.99)
+const API_COSTS_CENTS: Record<StudioTab, number> = { image: 3, character: 5, video: 50 };
+const PLATFORM_FEE_CENTS = 15;
+const BREAD_COSTS: Record<StudioTab, number> = {
+  image: Math.ceil((API_COSTS_CENTS.image + PLATFORM_FEE_CENTS) / 0.998), // ~18 → 25 BREAD (rounded up for margin)
+  character: Math.ceil((API_COSTS_CENTS.character + PLATFORM_FEE_CENTS) / 0.998), // ~20 → 30 BREAD
+  video: Math.ceil((API_COSTS_CENTS.video + PLATFORM_FEE_CENTS) / 0.998), // ~65 → 75 BREAD
+};
+// Override with actual pricing that includes healthy margin
+const costs: Record<StudioTab, number> = { image: 25, character: 30, video: 75 };
 
 const AIStudioPage = () => {
   const [activeTab, setActiveTab] = useState<StudioTab>("image");
@@ -43,17 +66,19 @@ const AIStudioPage = () => {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Disclaimer state
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
+  const [disclaimerChecks, setDisclaimerChecks] = useState({ own: false, noMinors: false, noProhibited: false });
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+
   const { user, profile } = useAuth();
-  const { balance, spendBread } = useWallet();
+  const { balance } = useWallet();
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Admin gets unlimited access
   const isAdmin = user?.email === "drpaydex@gmail.com";
 
-  const costs: Record<StudioTab, number> = { image: 25, character: 30, video: 75 };
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
@@ -62,23 +87,38 @@ const AIStudioPage = () => {
       return;
     }
 
+    // Show disclaimer dialog
+    setPendingFile(file);
+    setDisclaimerChecks({ own: false, noMinors: false, noProhibited: false });
+    setShowDisclaimer(true);
+    // Reset file input so same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDisclaimerAccept = async () => {
+    if (!pendingFile || !user) return;
+    setShowDisclaimer(false);
     setIsUploading(true);
+
     try {
-      const ext = file.name.split(".").pop();
+      const ext = pendingFile.name.split(".").pop();
       const path = `${user.id}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("ai-studio").upload(path, file);
+      const { error: uploadError } = await supabase.storage.from("ai-studio").upload(path, pendingFile);
       if (uploadError) throw uploadError;
 
       const { data: urlData } = supabase.storage.from("ai-studio").getPublicUrl(path);
       setSourceImageUrl(urlData.publicUrl);
-      setSourceImagePreview(URL.createObjectURL(file));
+      setSourceImagePreview(URL.createObjectURL(pendingFile));
       toast({ title: "Image uploaded!", description: "Ready to generate video." });
     } catch (err: any) {
       toast({ title: "Upload failed", description: err.message, variant: "destructive" });
     } finally {
       setIsUploading(false);
+      setPendingFile(null);
     }
   };
+
+  const allDisclaimerChecked = disclaimerChecks.own && disclaimerChecks.noMinors && disclaimerChecks.noProhibited;
 
   const handleGenerate = async () => {
     if (!user) {
@@ -113,7 +153,7 @@ const AIStudioPage = () => {
       if (data?.error) {
         toast({ title: "Generation failed", description: data.error, variant: "destructive" });
       } else {
-        toast({ title: "Generation complete!", description: `Cost: ${costs[activeTab]} BREAD` });
+        toast({ title: "Generation complete!", description: isAdmin ? "No BREAD charged (Admin)" : `Cost: ${costs[activeTab]} BREAD` });
         if (data?.result?.images) {
           setGeneratedResults(data.result.images.map((img: any) => img.url));
         } else if (data?.result?.video?.url) {
@@ -134,6 +174,13 @@ const AIStudioPage = () => {
     { id: "character", label: "Characters", icon: User, desc: "Build consistent AI personas" },
     { id: "video", label: "Video", icon: Video, desc: "Transform images into videos" },
   ];
+
+  const getCostBreakdown = (tab: StudioTab) => {
+    const apiCost = (API_COSTS_CENTS[tab] / 100).toFixed(2);
+    const fee = (PLATFORM_FEE_CENTS / 100).toFixed(2);
+    const total = ((API_COSTS_CENTS[tab] + PLATFORM_FEE_CENTS) / 100).toFixed(2);
+    return { apiCost, fee, total, bread: costs[tab] };
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -156,7 +203,9 @@ const AIStudioPage = () => {
             <Coins className="h-6 w-6 text-accent" />
             <div>
               <p className="text-xs text-muted-foreground">Your Balance</p>
-              <p className="text-2xl font-black text-gradient-gold">{user ? `${balance} BREAD` : "Log in to see balance"}</p>
+              <p className="text-2xl font-black text-gradient-gold">
+                {user ? (isAdmin ? "∞ BREAD (Admin)" : `${balance} BREAD`) : "Log in to see balance"}
+              </p>
             </div>
           </div>
           <Button onClick={() => user ? setShowBuyModal(true) : navigate("/auth")} className="bg-gradient-purple text-primary-foreground font-bold hover:opacity-90" size="sm">
@@ -183,7 +232,7 @@ const AIStudioPage = () => {
               </button>
             ))}
             <div className="border-t border-border my-4" />
-            <button className="w-full flex items-center gap-3 p-3 rounded-xl text-left text-muted-foreground hover:bg-muted transition-colors">
+            <button onClick={() => navigate("/history")} className="w-full flex items-center gap-3 p-3 rounded-xl text-left text-muted-foreground hover:bg-muted transition-colors">
               <History className="h-5 w-5" /><span className="text-sm">Generation History</span>
             </button>
             <button className="w-full flex items-center gap-3 p-3 rounded-xl text-left text-muted-foreground hover:bg-muted transition-colors">
@@ -223,11 +272,8 @@ const AIStudioPage = () => {
                       ))}
                     </div>
                   </div>
-                  <div className="flex items-center justify-between mt-5 pt-4 border-t border-border">
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Cost: </span>
-                      <span className="font-bold text-gradient-gold">25 BREAD</span>
-                    </div>
+                  <CostBreakdown tab="image" isAdmin={isAdmin} breakdown={getCostBreakdown("image")} />
+                  <div className="flex items-center justify-end mt-3">
                     <Button onClick={handleGenerate} disabled={isGenerating || !prompt} className="bg-gradient-purple text-primary-foreground font-bold hover:opacity-90" size="sm">
                       <Sparkles className="h-4 w-4 mr-1" /> {isGenerating ? "Generating..." : "Generate"}
                     </Button>
@@ -276,8 +322,8 @@ const AIStudioPage = () => {
                     <label className="text-xs font-bold text-muted-foreground mb-1 block">Physical Description</label>
                     <textarea value={characterDesc} onChange={(e) => setCharacterDesc(e.target.value)} placeholder="Describe your character's appearance..." className="w-full h-24 bg-muted border border-border rounded-lg p-3 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
                   </div>
-                  <div className="flex items-center justify-between mt-5 pt-4 border-t border-border">
-                    <span className="text-sm"><span className="text-muted-foreground">Cost: </span><span className="font-bold text-gradient-gold">30 BREAD</span></span>
+                  <CostBreakdown tab="character" isAdmin={isAdmin} breakdown={getCostBreakdown("character")} />
+                  <div className="flex items-center justify-end mt-3">
                     <Button onClick={handleGenerate} disabled={isGenerating || !characterDesc} className="bg-gradient-purple text-primary-foreground font-bold hover:opacity-90" size="sm">
                       <Wand2 className="h-4 w-4 mr-1" /> {isGenerating ? "Creating..." : "Create Character"}
                     </Button>
@@ -297,7 +343,7 @@ const AIStudioPage = () => {
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    onChange={handleImageUpload}
+                    onChange={handleFileSelected}
                   />
                   {sourceImagePreview ? (
                     <div className="relative rounded-xl overflow-hidden mb-4 max-h-64 flex items-center justify-center bg-muted">
@@ -338,7 +384,7 @@ const AIStudioPage = () => {
                     <div>
                       <label className="text-xs font-bold text-muted-foreground mb-1 block">Motion Preset</label>
                       <select value={motionPreset} onChange={(e) => setMotionPreset(e.target.value)} className="w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-                        <option>Slow Pan</option><option>Zoom In</option><option>Gentle Sway</option><option>Dynamic</option>
+                        <option>Static Shot</option><option>Slow Pan</option><option>Zoom In</option><option>Gentle Sway</option><option>Dynamic</option>
                       </select>
                     </div>
                     <div>
@@ -352,8 +398,8 @@ const AIStudioPage = () => {
                     <label className="text-xs font-bold text-muted-foreground mb-1 block">Motion Description</label>
                     <input value={motionDescription} onChange={(e) => setMotionDescription(e.target.value)} placeholder="Describe desired movement..." className="w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                   </div>
-                  <div className="flex items-center justify-between mt-5 pt-4 border-t border-border">
-                    <span className="text-sm"><span className="text-muted-foreground">Cost: </span><span className="font-bold text-gradient-gold">{isAdmin ? "FREE (Admin)" : "75 BREAD"}</span></span>
+                  <CostBreakdown tab="video" isAdmin={isAdmin} breakdown={getCostBreakdown("video")} />
+                  <div className="flex items-center justify-end mt-3">
                     <Button onClick={handleGenerate} disabled={isGenerating || !sourceImageUrl} className="bg-gradient-purple text-primary-foreground font-bold hover:opacity-90" size="sm">
                       <Video className="h-4 w-4 mr-1" /> {isGenerating ? "Generating..." : "Generate Video"}
                     </Button>
@@ -367,8 +413,108 @@ const AIStudioPage = () => {
 
       <Footer />
       <BuyBreadModal open={showBuyModal} onClose={() => setShowBuyModal(false)} />
+
+      {/* Image Upload Disclaimer Dialog */}
+      <AlertDialog open={showDisclaimer} onOpenChange={setShowDisclaimer}>
+        <AlertDialogContent className="bg-background border-border max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-destructive" />
+              Content Policy Agreement
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground text-sm space-y-3">
+              <p>Before uploading, you must confirm the following:</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-4 py-2">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <Checkbox
+                checked={disclaimerChecks.own}
+                onCheckedChange={(v) => setDisclaimerChecks((p) => ({ ...p, own: !!v }))}
+                className="mt-0.5"
+              />
+              <span className="text-sm text-foreground">
+                I confirm that I <strong>own this image</strong> or have the legal right to use it. It does not depict any public figure, celebrity, or person without their explicit consent.
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <Checkbox
+                checked={disclaimerChecks.noMinors}
+                onCheckedChange={(v) => setDisclaimerChecks((p) => ({ ...p, noMinors: !!v }))}
+                className="mt-0.5"
+              />
+              <span className="text-sm text-foreground">
+                This image <strong>does NOT contain any minors</strong> (anyone under 18). Uploading images of minors is <strong>strictly prohibited</strong> and will result in immediate account termination and a report to law enforcement authorities.
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <Checkbox
+                checked={disclaimerChecks.noProhibited}
+                onCheckedChange={(v) => setDisclaimerChecks((p) => ({ ...p, noProhibited: !!v }))}
+                className="mt-0.5"
+              />
+              <span className="text-sm text-foreground">
+                This image does not contain <strong>illegal content</strong>, including but not limited to: non-consensual imagery, child exploitation material, or content that violates applicable laws.
+              </span>
+            </label>
+          </div>
+
+          <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-xs text-destructive">
+            <strong>⚠️ Warning:</strong> Violations of this policy will result in permanent account suspension. Any content involving minors will be immediately reported to NCMEC and relevant law enforcement agencies.
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingFile(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDisclaimerAccept}
+              disabled={!allDisclaimerChecked}
+              className="bg-gradient-purple text-primary-foreground font-bold hover:opacity-90"
+            >
+              I Agree & Upload
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
+
+const CostBreakdown = ({
+  tab,
+  isAdmin,
+  breakdown,
+}: {
+  tab: StudioTab;
+  isAdmin: boolean;
+  breakdown: { apiCost: string; fee: string; total: string; bread: number };
+}) => (
+  <div className="mt-5 pt-4 border-t border-border">
+    <div className="flex items-center justify-between mb-1">
+      <span className="text-sm text-muted-foreground">Cost Breakdown</span>
+      <span className="font-bold text-gradient-gold text-sm">
+        {isAdmin ? "FREE (Admin)" : `${breakdown.bread} BREAD`}
+      </span>
+    </div>
+    {!isAdmin && (
+      <div className="text-xs text-muted-foreground space-y-0.5">
+        <div className="flex justify-between">
+          <span>API Processing</span>
+          <span>${breakdown.apiCost}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Platform Fee</span>
+          <span>${breakdown.fee}</span>
+        </div>
+        <div className="flex justify-between border-t border-border/50 pt-1 mt-1 text-foreground font-medium">
+          <span>Total</span>
+          <span>${breakdown.total} → {breakdown.bread} BREAD</span>
+        </div>
+      </div>
+    )}
+  </div>
+);
 
 export default AIStudioPage;
