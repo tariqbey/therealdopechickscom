@@ -83,6 +83,8 @@ const CreatorProfile = () => {
 
   const isOwnProfile = user && creator && user.id === creator.user_id;
 
+  const userId = user?.id;
+
   useEffect(() => {
     const loadCreator = async () => {
       setLoadingCreator(true);
@@ -106,7 +108,7 @@ const CreatorProfile = () => {
         setCreator(found as unknown as CreatorData);
         loadTiers(found.user_id);
         loadPosts(found.user_id);
-        if (user) checkSubscription(found.user_id);
+        if (userId) checkSubscription(found.user_id);
       }
       setLoadingCreator(false);
     };
@@ -123,7 +125,7 @@ const CreatorProfile = () => {
 
     loadCreator();
     loadSettings();
-  }, [handle, user]);
+  }, [handle, userId]);
 
   const loadTiers = async (creatorUserId: string) => {
     const { data } = await supabase
