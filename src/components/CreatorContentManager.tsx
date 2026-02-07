@@ -16,6 +16,7 @@ import { Upload, X, Loader2, Image as ImageIcon, Video, Library } from "lucide-r
 import { useToast } from "@/hooks/use-toast";
 import LibraryPicker from "@/components/LibraryPicker";
 import PostEditModal from "@/components/PostEditModal";
+import EmojiToolbar from "@/components/EmojiToolbar";
 
 interface CreatorPost {
   id: string;
@@ -108,6 +109,7 @@ const CreatorContentManager = ({ posts, onRefresh }: ContentManagerProps) => {
         <div>
           <Label className="text-xs text-muted-foreground">Title (optional)</Label>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Post title..." className="bg-muted border-border mt-1" maxLength={100} />
+          <EmojiToolbar onSelect={(e) => setTitle((prev) => prev + e)} />
         </div>
 
         <div>
@@ -119,6 +121,7 @@ const CreatorContentManager = ({ posts, onRefresh }: ContentManagerProps) => {
             maxLength={500}
             className="w-full h-16 bg-muted border border-border rounded-lg p-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary mt-1"
           />
+          <EmojiToolbar onSelect={(e) => setDescription((prev) => prev + e)} />
         </div>
 
         <div className="flex items-center gap-6">
