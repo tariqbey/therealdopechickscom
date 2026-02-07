@@ -335,11 +335,7 @@ const ProfileSettings = () => {
                 </Button>
               </div>
             )}
-          </div>
 
-          {/* Push Notifications */}
-          <PushNotificationSettings />
-        </motion.div>
             {/* Admin Link */}
             {isAdmin && (
               <div className="mt-2">
@@ -353,6 +349,11 @@ const ProfileSettings = () => {
               </div>
             )}
           </div>
+
+          {/* Push Notifications */}
+          <PushNotificationSettings />
+        </motion.div>
+      </div>
       <Footer />
 
       {/* Image Crop Modal */}
