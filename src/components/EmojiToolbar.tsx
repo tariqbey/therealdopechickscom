@@ -8,7 +8,7 @@ interface EmojiToolbarProps {
 }
 
 const EmojiToolbar = ({ onSelect }: EmojiToolbarProps) => (
-  <div className="flex flex-wrap gap-1 mt-1">
+  <div className="flex flex-wrap gap-1 mt-1 relative z-10">
     {EMOJIS.map((e) => (
       <button
         key={e}
