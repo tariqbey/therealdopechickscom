@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Play, Sparkles } from "lucide-react";
 import dopeVideo from "@/assets/dope.mp4";
+import logo from "@/assets/logo.png";
 
 const HeroSection = () => {
   return (
@@ -20,7 +21,7 @@ const HeroSection = () => {
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background/60" />
       </div>
 
-      <div className="relative container mx-auto px-4 pt-24">
+      <div className="relative container mx-auto px-4 pt-24 flex flex-col items-center md:items-start">
         <div className="max-w-2xl">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
