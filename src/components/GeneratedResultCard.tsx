@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { Video, Download, Save, Loader2, Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Video, Download, Save, Loader2, Check, X, ZoomIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
@@ -14,6 +14,7 @@ interface GeneratedResultCardProps {
 const GeneratedResultCard = ({ url, index, onAnimateToVideo, onSaveToLibrary }: GeneratedResultCardProps) => {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const { toast } = useToast();
 
   const handleSave = async () => {
@@ -38,55 +39,88 @@ const GeneratedResultCard = ({ url, index, onAnimateToVideo, onSaveToLibrary }: 
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay: index * 0.1 }}
-      className="group rounded-xl border border-border overflow-hidden bg-gradient-card"
-    >
-      <div className="overflow-hidden relative">
-        <img src={url} alt={`Generated ${index + 1}`} className="w-full h-auto object-contain" />
-        {/* Hover overlay */}
-        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+    <>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: index * 0.1 }}
+        className="group rounded-xl border border-border overflow-hidden bg-gradient-card"
+      >
+        <div
+          className="overflow-hidden relative cursor-pointer"
+          onClick={() => setLightboxOpen(true)}
+        >
+          <img src={url} alt={`Generated ${index + 1}`} className="w-full h-auto object-contain" />
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <ZoomIn className="h-8 w-8 text-white drop-shadow-lg" />
+          </div>
+        </div>
+
+        <div className="p-3 space-y-2">
+          <Button
+            size="sm"
+            onClick={() => onAnimateToVideo(url)}
+            className="w-full bg-gradient-purple text-primary-foreground font-bold hover:opacity-90 h-8 text-xs"
+          >
+            <Video className="h-3 w-3 mr-1" /> Animate to Video
+          </Button>
           <div className="flex gap-2">
             <Button
               size="sm"
-              variant="secondary"
-              onClick={handleDownload}
-              className="h-8 text-xs"
+              variant="outline"
+              onClick={handleSave}
+              disabled={saving || saved}
+              className="flex-1 h-8 text-xs"
             >
-              <Download className="h-3 w-3 mr-1" /> Download
+              {saving ? (
+                <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Saving...</>
+              ) : saved ? (
+                <><Check className="h-3 w-3 mr-1 text-green-500" /> Saved</>
+              ) : (
+                <><Save className="h-3 w-3 mr-1" /> Save to Library</>
+              )}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleDownload}
+              className="h-8 text-xs px-3"
+            >
+              <Download className="h-3 w-3" />
             </Button>
           </div>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Action buttons */}
-      <div className="p-3 space-y-2">
-        <Button
-          size="sm"
-          onClick={() => onAnimateToVideo(url)}
-          className="w-full bg-gradient-purple text-primary-foreground font-bold hover:opacity-90 h-8 text-xs"
-        >
-          <Video className="h-3 w-3 mr-1" /> Animate to Video
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleSave}
-          disabled={saving || saved}
-          className="w-full h-8 text-xs"
-        >
-          {saving ? (
-            <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Saving...</>
-          ) : saved ? (
-            <><Check className="h-3 w-3 mr-1 text-green-500" /> Saved</>
-          ) : (
-            <><Save className="h-3 w-3 mr-1" /> Save to Library</>
-          )}
-        </Button>
-      </div>
-    </motion.div>
+      {/* Lightbox */}
+      <AnimatePresence>
+        {lightboxOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+            onClick={() => setLightboxOpen(false)}
+          >
+            <button
+              onClick={() => setLightboxOpen(false)}
+              className="absolute top-4 right-4 p-2 rounded-full bg-background/20 hover:bg-background/40 text-white transition-colors z-50"
+            >
+              <X className="h-6 w-6" />
+            </button>
+            <motion.img
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              src={url}
+              alt={`Generated ${index + 1}`}
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 };
 

@@ -96,11 +96,10 @@ const AIStudioPage = () => {
 
   const handleSaveToLibrary = async (imageUrl: string) => {
     if (!user) throw new Error("Not logged in");
-    // Save a record to ai_generations as a "saved" item
     const { error } = await supabase.from("ai_generations").insert({
       user_id: user.id,
-      generation_type: "saved",
-      prompt: "Saved from AI Studio",
+      generation_type: "image",
+      prompt: prompt || "Saved from AI Studio",
       result_url: imageUrl,
       status: "completed",
       cost: 0,
