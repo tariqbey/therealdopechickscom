@@ -1,11 +1,20 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Camera, Save, Loader2, Sparkles, ImageIcon } from "lucide-react";
+import { Camera, Save, Loader2, Sparkles, ImageIcon, Plus, Trash2, DollarSign, Crown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+interface TierRow {
+  id: string;
+  tier_name: string;
+  price_cents: number;
+  description: string;
+  is_active: boolean;
+  isNew?: boolean;
+}
 
 interface CreatorProfileEditorProps {
   onSaved: () => void;
@@ -25,6 +34,31 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [generatingBio, setGeneratingBio] = useState(false);
+  const [tiers, setTiers] = useState<TierRow[]>([]);
+  const [loadingTiers, setLoadingTiers] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    const loadTiers = async () => {
+      setLoadingTiers(true);
+      const { data } = await supabase
+        .from("creator_subscription_tiers")
+        .select("*")
+        .eq("creator_id", user.id)
+        .order("price_cents", { ascending: true });
+      if (data && data.length > 0) {
+        setTiers(data.map((t) => ({ ...t, description: t.description || "" })));
+      } else {
+        setTiers([
+          { id: "new-0", tier_name: "Bronze", price_cents: 499, description: "Access to basic posts", is_active: true, isNew: true },
+          { id: "new-1", tier_name: "Silver", price_cents: 999, description: "Exclusive content & priority DMs", is_active: true, isNew: true },
+          { id: "new-2", tier_name: "Gold", price_cents: 2499, description: "Custom requests & 1-on-1 calls", is_active: true, isNew: true },
+        ]);
+      }
+      setLoadingTiers(false);
+    };
+    loadTiers();
+  }, [user]);
 
   if (!user) return null;
 
@@ -89,6 +123,7 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
 
   const handleSave = async () => {
     setSaving(true);
+    // Save profile
     const { error } = await supabase
       .from("profiles")
       .update({
@@ -100,11 +135,38 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
       .eq("user_id", user.id);
     if (error) {
       toast({ title: "Save failed", description: error.message, variant: "destructive" });
-    } else {
-      await refreshProfile();
-      toast({ title: "Profile updated!" });
-      onSaved();
+      setSaving(false);
+      return;
     }
+
+    // Save tiers
+    try {
+      for (const tier of tiers) {
+        if (tier.price_cents < 499) continue;
+        if (tier.isNew) {
+          await supabase.from("creator_subscription_tiers").insert({
+            creator_id: user.id,
+            tier_name: tier.tier_name,
+            price_cents: tier.price_cents,
+            description: tier.description,
+            is_active: tier.is_active,
+          });
+        } else {
+          await supabase.from("creator_subscription_tiers").update({
+            tier_name: tier.tier_name,
+            price_cents: tier.price_cents,
+            description: tier.description,
+            is_active: tier.is_active,
+          }).eq("id", tier.id);
+        }
+      }
+    } catch (e: any) {
+      toast({ title: "Tier save error", description: e.message, variant: "destructive" });
+    }
+
+    await refreshProfile();
+    toast({ title: "Profile & tiers updated!" });
+    onSaved();
     setSaving(false);
   };
 
@@ -175,13 +237,78 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
           value={bio}
           onChange={(e) => setBio(e.target.value)}
           maxLength={500}
-          placeholder="Tell fans about yourself..."
-          className="w-full h-20 bg-muted border border-border rounded-lg p-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+          placeholder="Tell fans about yourself — your personality, content style, what makes you unique..."
+          className="w-full h-32 bg-muted border border-border rounded-lg p-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary"
         />
+        <p className="text-xs text-muted-foreground mt-1">{bio.length}/500 • AI Assist generates a detailed 3-5 sentence bio</p>
+      </div>
+
+      {/* Subscription Tiers */}
+      <div className="border-t border-border pt-5 mt-2">
+        <div className="flex items-center justify-between mb-3">
+          <Label className="text-sm font-bold text-foreground flex items-center gap-2">
+            <Crown className="h-4 w-4 text-accent" /> Subscription Tiers
+          </Label>
+        </div>
+        {loadingTiers ? (
+          <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+        ) : (
+          <div className="space-y-3">
+            {tiers.map((tier, i) => (
+              <div key={tier.id} className="rounded-lg border border-border bg-muted/50 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <input
+                    value={tier.tier_name}
+                    onChange={(e) => setTiers(tiers.map((t, idx) => idx === i ? { ...t, tier_name: e.target.value } : t))}
+                    placeholder="Tier name"
+                    className="bg-transparent font-bold text-sm text-foreground placeholder:text-muted-foreground focus:outline-none w-32"
+                  />
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="4.99"
+                        value={(tier.price_cents / 100).toFixed(2)}
+                        onChange={(e) => {
+                          const val = Math.max(499, Math.round(parseFloat(e.target.value || "0") * 100));
+                          setTiers(tiers.map((t, idx) => idx === i ? { ...t, price_cents: val } : t));
+                        }}
+                        className="w-20 bg-muted border border-border rounded-md p-1.5 pl-6 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">/mo</span>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => {
+                      if (!tier.isNew) {
+                        supabase.from("creator_subscription_tiers").update({ is_active: false }).eq("id", tier.id);
+                      }
+                      setTiers(tiers.filter((_, idx) => idx !== i));
+                    }}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+                <input
+                  value={tier.description}
+                  onChange={(e) => setTiers(tiers.map((t, idx) => idx === i ? { ...t, description: e.target.value } : t))}
+                  placeholder="What fans get with this tier..."
+                  className="w-full bg-transparent text-xs text-muted-foreground placeholder:text-muted-foreground focus:outline-none"
+                />
+              </div>
+            ))}
+            {tiers.length < 5 && (
+              <Button variant="outline" size="sm" onClick={() => setTiers([...tiers, { id: `new-${Date.now()}`, tier_name: "", price_cents: 499, description: "", is_active: true, isNew: true }])} className="w-full border-dashed text-xs">
+                <Plus className="h-3 w-3 mr-1" /> Add Tier
+              </Button>
+            )}
+            <p className="text-[10px] text-muted-foreground">Minimum price: $4.99/mo</p>
+          </div>
+        )}
       </div>
 
       <Button onClick={handleSave} disabled={saving} className="w-full bg-gradient-purple text-primary-foreground font-bold hover:opacity-90">
-        <Save className="h-4 w-4 mr-1" /> {saving ? "Saving..." : "Save Profile"}
+        <Save className="h-4 w-4 mr-1" /> {saving ? "Saving..." : "Save Profile & Tiers"}
       </Button>
     </div>
   );
