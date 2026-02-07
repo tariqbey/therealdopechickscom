@@ -376,7 +376,7 @@ const AIStudioPage = () => {
                 {!isGenerating && (
                   <div>
                     <h3 className="text-sm font-bold mb-3">Generated Results</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {generatedResults.length > 0 ? generatedResults.map((url, i) => (
                         <GeneratedResultCard
                           key={i}
