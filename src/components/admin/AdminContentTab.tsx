@@ -1,253 +1,187 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
-import { Trash2, Eye, AlertTriangle, CheckCircle, XCircle, Search, Image } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { DollarSign, TrendingUp, Activity, BarChart3, ToggleLeft } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
-interface Generation {
-  id: string;
-  user_id: string;
-  generation_type: string;
-  prompt: string | null;
-  result_url: string | null;
-  status: string;
+interface GenerationRow {
+  api_cost_cents: number;
+  platform_fee_cents: number;
   cost: number;
+  generation_type: string;
+  status: string;
   created_at: string;
 }
 
 const AdminContentTab = () => {
-  const [generations, setGenerations] = useState<Generation[]>([]);
+  const [generations, setGenerations] = useState<GenerationRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-
-  const fetchGenerations = async () => {
-    setLoading(true);
-    let query = supabase
-      .from("ai_generations")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(100);
-
-    if (statusFilter !== "all") {
-      query = query.eq("status", statusFilter);
-    }
-
-    const { data } = await query;
-    setGenerations((data as Generation[]) || []);
-    setLoading(false);
-  };
+  const [showDummy, setShowDummy] = useState(true);
+  const [savingDummy, setSavingDummy] = useState(false);
 
   useEffect(() => {
-    fetchGenerations();
-  }, [statusFilter]);
-
-  const callAdminAction = async (action: string, params: Record<string, unknown>) => {
-    const res = await supabase.functions.invoke("admin-actions", {
-      body: { action, ...params },
-    });
-    if (res.error) throw new Error(res.error.message);
-    return res.data;
-  };
-
-  const deleteGeneration = async (id: string) => {
-    setActionLoading(id);
-    try {
-      await callAdminAction("delete_generation", { generation_id: id });
-      toast.success("Generation deleted");
-      fetchGenerations();
-    } catch (e: any) {
-      toast.error(e.message);
-    }
-    setActionLoading(null);
-  };
-
-  const updateStatus = async (id: string, status: string) => {
-    setActionLoading(id);
-    try {
-      await callAdminAction("update_generation_status", { generation_id: id, status });
-      toast.success(`Status updated to ${status}`);
-      fetchGenerations();
-    } catch (e: any) {
-      toast.error(e.message);
-    }
-    setActionLoading(null);
-  };
-
-  const filteredGenerations = generations.filter(
-    (g) =>
-      !search ||
-      (g.prompt || "").toLowerCase().includes(search.toLowerCase()) ||
-      g.generation_type.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const statusBadge = (status: string) => {
-    const variants: Record<string, { icon: typeof CheckCircle; className: string }> = {
-      completed: { icon: CheckCircle, className: "bg-green-500/10 text-green-400 border-green-500/20" },
-      pending: { icon: AlertTriangle, className: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20" },
-      failed: { icon: XCircle, className: "bg-destructive/10 text-destructive border-destructive/20" },
-      flagged: { icon: AlertTriangle, className: "bg-orange-500/10 text-orange-400 border-orange-500/20" },
+    const fetch = async () => {
+      const [genRes, settingRes] = await Promise.all([
+        supabase
+          .from("ai_generations")
+          .select("api_cost_cents, platform_fee_cents, cost, generation_type, status, created_at")
+          .order("created_at", { ascending: false })
+          .limit(1000),
+        supabase
+          .from("platform_settings")
+          .select("*")
+          .eq("key", "show_dummy_content")
+          .maybeSingle(),
+      ]);
+      setGenerations((genRes.data as GenerationRow[]) || []);
+      if (settingRes.data) {
+        setShowDummy((settingRes.data as any).value?.enabled ?? true);
+      }
+      setLoading(false);
     };
-    const v = variants[status] || variants.pending;
-    const Icon = v.icon;
-    return (
-      <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${v.className}`}>
-        <Icon className="h-3 w-3" />
-        {status}
-      </span>
-    );
+    fetch();
+  }, []);
+
+  const toggleDummy = async (enabled: boolean) => {
+    setSavingDummy(true);
+    setShowDummy(enabled);
+    const { error } = await supabase
+      .from("platform_settings")
+      .update({ value: { enabled } as any, updated_at: new Date().toISOString() })
+      .eq("key", "show_dummy_content");
+    if (error) {
+      toast.error("Failed to update");
+      setShowDummy(!enabled);
+    } else {
+      toast.success(`Dummy content ${enabled ? "enabled" : "disabled"}`);
+    }
+    setSavingDummy(false);
   };
+
+  const completed = generations.filter((g) => g.status === "completed");
+  const totalApiCost = completed.reduce((s, g) => s + g.api_cost_cents, 0);
+  const totalPlatformFee = completed.reduce((s, g) => s + g.platform_fee_cents, 0);
+  const totalProfit = totalPlatformFee;
+  const totalBreadSpent = completed.reduce((s, g) => s + g.cost, 0);
+
+  // By type breakdown
+  const byType: Record<string, { count: number; apiCost: number; fee: number; bread: number }> = {};
+  completed.forEach((g) => {
+    if (!byType[g.generation_type]) byType[g.generation_type] = { count: 0, apiCost: 0, fee: 0, bread: 0 };
+    byType[g.generation_type].count++;
+    byType[g.generation_type].apiCost += g.api_cost_cents;
+    byType[g.generation_type].fee += g.platform_fee_cents;
+    byType[g.generation_type].bread += g.cost;
+  });
+
+  // Last 30 days
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const recent = completed.filter((g) => new Date(g.created_at) >= thirtyDaysAgo);
+  const recentApiCost = recent.reduce((s, g) => s + g.api_cost_cents, 0);
+  const recentProfit = recent.reduce((s, g) => s + g.platform_fee_cents, 0);
+
+  const cents = (v: number) => `$${(v / 100).toFixed(2)}`;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="animate-pulse text-muted-foreground">Loading…</div>
+      </div>
+    );
+  }
+
+  const statCards = [
+    { label: "Total API Cost", value: cents(totalApiCost), sub: `${completed.length} generations`, icon: Activity, color: "text-destructive" },
+    { label: "Platform Fees (Profit)", value: cents(totalProfit), sub: `~$0.15/request`, icon: TrendingUp, color: "text-green-400" },
+    { label: "BREAD Collected", value: `${totalBreadSpent.toLocaleString()} 🍞`, sub: "from users", icon: DollarSign, color: "text-accent" },
+    { label: "30-Day Profit", value: cents(recentProfit), sub: `Cost: ${cents(recentApiCost)}`, icon: BarChart3, color: "text-primary" },
+  ];
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by prompt or type..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+      {/* Dummy Content Toggle */}
+      <div className="rounded-xl bg-gradient-card border border-border p-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <ToggleLeft className="h-5 w-5 text-primary" />
+            <div>
+              <Label className="text-sm font-medium text-foreground">Dummy / Placeholder Content</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">Show sample content on profiles without real posts</p>
+            </div>
+          </div>
+          <Switch checked={showDummy} onCheckedChange={toggleDummy} disabled={savingDummy} />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-36 h-9 text-xs">
-            <SelectValue placeholder="Filter status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="failed">Failed</SelectItem>
-            <SelectItem value="flagged">Flagged</SelectItem>
-          </SelectContent>
-        </Select>
-        <span className="text-sm text-muted-foreground">{filteredGenerations.length} items</span>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-48">
-          <div className="animate-pulse text-muted-foreground">Loading content…</div>
-        </div>
-      ) : filteredGenerations.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
-          <Image className="h-8 w-8 mb-2" />
-          <p className="text-sm">No AI generations found</p>
-        </div>
-      ) : (
-        <div className="rounded-xl bg-gradient-card border border-border p-6">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-muted-foreground text-left border-b border-border">
-                  <th className="pb-3 font-medium">Type</th>
-                  <th className="pb-3 font-medium">Prompt</th>
-                  <th className="pb-3 font-medium">Status</th>
-                  <th className="pb-3 font-medium">Cost</th>
-                  <th className="pb-3 font-medium">Created</th>
-                  <th className="pb-3 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filteredGenerations.map((g) => (
-                  <tr key={g.id} className="text-foreground">
-                    <td className="py-3">
-                      <Badge variant="outline" className="text-xs">
-                        {g.generation_type}
-                      </Badge>
-                    </td>
-                    <td className="py-3 max-w-[200px] truncate text-muted-foreground" title={g.prompt || ""}>
-                      {g.prompt || "—"}
-                    </td>
-                    <td className="py-3">{statusBadge(g.status)}</td>
-                    <td className="py-3 text-muted-foreground">{g.cost} 🍞</td>
-                    <td className="py-3 text-muted-foreground">
-                      {new Date(g.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="py-3">
-                      <div className="flex items-center gap-1">
-                        {g.result_url && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs"
-                            onClick={() => window.open(g.result_url!, "_blank")}
-                          >
-                            <Eye className="h-3 w-3" />
-                          </Button>
-                        )}
-                        <Select
-                          value={g.status}
-                          onValueChange={(val) => updateStatus(g.id, val)}
-                          disabled={actionLoading === g.id}
-                        >
-                          <SelectTrigger className="w-24 h-7 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="completed">Completed</SelectItem>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="flagged">Flagged</SelectItem>
-                            <SelectItem value="failed">Failed</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 text-xs text-destructive hover:bg-destructive/10"
-                              disabled={actionLoading === g.id}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete generation?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This will permanently remove this AI generation. This cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => deleteGeneration(g.id)}>
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </td>
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {statCards.map((card) => (
+          <div key={card.label} className="rounded-xl bg-gradient-card border border-border p-5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">{card.label}</span>
+              <card.icon className={`h-4 w-4 ${card.color}`} />
+            </div>
+            <p className="text-2xl font-display font-bold text-foreground">{card.value}</p>
+            <p className="text-xs text-muted-foreground mt-1">{card.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Breakdown by Type */}
+      <div className="rounded-xl bg-gradient-card border border-border p-6">
+        <h3 className="text-lg font-display font-bold text-foreground mb-4">Breakdown by Generation Type</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-muted-foreground text-left border-b border-border">
+                <th className="pb-3 font-medium">Type</th>
+                <th className="pb-3 font-medium text-right">Count</th>
+                <th className="pb-3 font-medium text-right">API Cost</th>
+                <th className="pb-3 font-medium text-right">Platform Fee</th>
+                <th className="pb-3 font-medium text-right">Net Profit</th>
+                <th className="pb-3 font-medium text-right">BREAD</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {Object.entries(byType)
+                .sort((a, b) => b[1].count - a[1].count)
+                .map(([type, data]) => (
+                  <tr key={type} className="text-foreground">
+                    <td className="py-3 capitalize font-medium">{type.replace(/_/g, " ")}</td>
+                    <td className="py-3 text-right text-muted-foreground">{data.count}</td>
+                    <td className="py-3 text-right text-destructive">{cents(data.apiCost)}</td>
+                    <td className="py-3 text-right text-green-400">{cents(data.fee)}</td>
+                    <td className="py-3 text-right font-semibold text-green-400">{cents(data.fee)}</td>
+                    <td className="py-3 text-right text-muted-foreground">{data.bread} 🍞</td>
                   </tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-border font-bold text-foreground">
+                <td className="pt-3">Total</td>
+                <td className="pt-3 text-right">{completed.length}</td>
+                <td className="pt-3 text-right text-destructive">{cents(totalApiCost)}</td>
+                <td className="pt-3 text-right text-green-400">{cents(totalPlatformFee)}</td>
+                <td className="pt-3 text-right text-green-400">{cents(totalProfit)}</td>
+                <td className="pt-3 text-right">{totalBreadSpent} 🍞</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
-      )}
+      </div>
+
+      {/* Margin info */}
+      <div className="rounded-xl bg-gradient-card border border-border p-5">
+        <h3 className="text-sm font-bold text-foreground mb-2">💡 Margin Notes</h3>
+        <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+          <li>Each AI request includes a ~$0.15 platform surcharge on top of API costs</li>
+          <li>Platform Fee column = your net revenue per generation</li>
+          <li>BREAD collected = total user currency spent (priced to cover cost + margin)</li>
+        </ul>
+      </div>
     </motion.div>
   );
 };
