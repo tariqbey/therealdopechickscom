@@ -110,7 +110,7 @@ const CreatorTiers = () => {
     setTiers([...tiers, {
       id: `new-${Date.now()}`,
       tier_name: "",
-      price_cents: 999,
+      price_cents: 499,
       description: "",
       is_active: true,
       isNew: true,
@@ -183,10 +183,15 @@ const CreatorTiers = () => {
                       <input
                         type="number"
                         step="0.01"
+                        min="4.99"
                         value={(tier.price_cents / 100).toFixed(2)}
-                        onChange={(e) => updateTier(index, "price_cents", Math.round(parseFloat(e.target.value || "0") * 100))}
+                        onChange={(e) => {
+                          const val = Math.max(499, Math.round(parseFloat(e.target.value || "0") * 100));
+                          updateTier(index, "price_cents", val);
+                        }}
                         className="w-full bg-muted border border-border rounded-lg p-2.5 pl-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                       />
+                      <span className="text-[10px] text-muted-foreground mt-0.5">Minimum $4.99/mo</span>
                     </div>
                   </div>
                 </div>

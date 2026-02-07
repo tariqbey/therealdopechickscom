@@ -19,8 +19,18 @@ serve(async (req) => {
     const { displayName, currentBio, isCreator } = await req.json();
 
     const prompt = isCreator
-      ? `You are a social media bio writer for content creators on an adult creator platform similar to OnlyFans. Write a compelling, flirty, and attention-grabbing bio for a creator named "${displayName || "a creator"}". ${currentBio ? `Their current bio is: "${currentBio}". Improve it.` : "Create a fresh bio."} Keep it under 300 characters. Be playful, confident, and enticing. Use emojis sparingly. Do NOT use hashtags. Output ONLY the bio text, nothing else.`
-      : `Write a short, engaging social media bio for a user named "${displayName || "someone"}". ${currentBio ? `Their current bio is: "${currentBio}". Improve it.` : "Create a fresh bio."} Keep it under 200 characters. Be friendly and authentic. Output ONLY the bio text, nothing else.`;
+      ? `You are an expert social media bio writer for content creators on a premium adult creator platform. Write a detailed, compelling, and seductive bio for a creator named "${displayName || "a creator"}". ${currentBio ? `Their current bio is: "${currentBio}". Expand and improve it significantly.` : "Create a fresh, detailed bio."} 
+
+Requirements:
+- Write 3-5 sentences (400-500 characters)
+- Include personality traits, content style, and what makes them unique
+- Be flirty, confident, and enticing but classy
+- Mention content themes they might cover
+- Include a call-to-action for subscribers
+- Use 2-3 emojis maximum
+- Do NOT use hashtags
+- Output ONLY the bio text, nothing else.`
+      : `Write an engaging social media bio for a user named "${displayName || "someone"}". ${currentBio ? `Their current bio is: "${currentBio}". Expand and improve it.` : "Create a fresh bio."} Write 2-3 sentences (200-300 characters). Be friendly, authentic, and personable. Output ONLY the bio text, nothing else.`;
 
     const response = await fetch(AI_GATEWAY_URL, {
       method: "POST",
@@ -31,10 +41,10 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
-          { role: "system", content: "You write short, compelling social media bios. Output only the bio text." },
+          { role: "system", content: "You write detailed, compelling social media bios that capture personality and entice followers. Output only the bio text." },
           { role: "user", content: prompt },
         ],
-        max_tokens: 200,
+        max_tokens: 400,
         temperature: 0.9,
       }),
     });

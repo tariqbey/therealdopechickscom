@@ -229,10 +229,10 @@ const ProfileSettings = () => {
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 maxLength={500}
-                placeholder="Tell the world about yourself..."
-                className="w-full h-24 bg-muted border border-border rounded-lg p-3 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="Tell the world about yourself — your personality, interests, what makes you unique..."
+                className="w-full h-32 bg-muted border border-border rounded-lg p-3 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary"
               />
-              <p className="text-xs text-muted-foreground mt-1">{bio.length}/500</p>
+              <p className="text-xs text-muted-foreground mt-1">{bio.length}/500 • AI Assist generates a detailed bio</p>
             </div>
 
             {/* Account Type */}
