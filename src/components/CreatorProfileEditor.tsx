@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
+import ImageCropModal from "@/components/ImageCropModal";
 
 interface TierRow {
   id: string;
@@ -76,6 +77,11 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
   const [loadingTiers, setLoadingTiers] = useState(true);
   const [activeSection, setActiveSection] = useState<"profile" | "details" | "tiers">("profile");
 
+  // Crop modal state
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState("");
+  const [cropTarget, setCropTarget] = useState<"avatar" | "cover">("avatar");
+
   // Load extended profile data
   useEffect(() => {
     if (!user) return;
@@ -135,38 +141,47 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
 
   if (!user) return null;
 
-  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) { toast({ title: "File too large", description: "Max 10MB", variant: "destructive" }); return; }
-    setUploadingCover(true);
-    const ext = file.name.split(".").pop();
-    const path = `${user.id}/cover.${ext}`;
-    const { error } = await supabase.storage.from("covers").upload(path, file, { upsert: true });
-    if (error) { toast({ title: "Upload failed", description: error.message, variant: "destructive" }); }
-    else {
-      const { data: { publicUrl } } = supabase.storage.from("covers").getPublicUrl(path);
-      setCoverUrl(publicUrl);
-      toast({ title: "Cover uploaded!" });
-    }
-    setUploadingCover(false);
+    const objectUrl = URL.createObjectURL(file);
+    setCropImageSrc(objectUrl);
+    setCropTarget("cover");
+    setCropModalOpen(true);
+    if (coverInputRef.current) coverInputRef.current.value = "";
   };
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) { toast({ title: "File too large", description: "Max 5MB", variant: "destructive" }); return; }
-    setUploadingAvatar(true);
-    const ext = file.name.split(".").pop();
-    const path = `${user.id}/avatar.${ext}`;
-    const { error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
-    if (error) { toast({ title: "Upload failed", description: error.message, variant: "destructive" }); }
-    else {
-      const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
-      setAvatarUrl(publicUrl);
-      toast({ title: "Avatar uploaded!" });
+    const objectUrl = URL.createObjectURL(file);
+    setCropImageSrc(objectUrl);
+    setCropTarget("avatar");
+    setCropModalOpen(true);
+    if (avatarInputRef.current) avatarInputRef.current.value = "";
+  };
+
+  const handleCropComplete = async (blob: Blob) => {
+    setCropModalOpen(false);
+    const bucket = cropTarget === "avatar" ? "avatars" : "covers";
+    const setUrl = cropTarget === "avatar" ? setAvatarUrl : setCoverUrl;
+    const setUploading = cropTarget === "avatar" ? setUploadingAvatar : setUploadingCover;
+
+    setUploading(true);
+    const path = `${user.id}/${cropTarget}.jpg`;
+    const file = new File([blob], `${cropTarget}.jpg`, { type: "image/jpeg" });
+    const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
+    if (error) {
+      toast({ title: "Upload failed", description: error.message, variant: "destructive" });
+    } else {
+      const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(path);
+      // Add cache buster
+      setUrl(`${publicUrl}?t=${Date.now()}`);
+      toast({ title: `${cropTarget === "avatar" ? "Avatar" : "Cover"} uploaded!` });
     }
-    setUploadingAvatar(false);
+    setUploading(false);
   };
 
   const handleGenerateBio = async () => {
@@ -624,6 +639,17 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
       <Button onClick={handleSave} disabled={saving} className="w-full bg-gradient-purple text-primary-foreground font-bold hover:opacity-90">
         <Save className="h-4 w-4 mr-1" /> {saving ? "Saving..." : "Save Everything"}
       </Button>
+
+      {/* Image Crop Modal */}
+      <ImageCropModal
+        open={cropModalOpen}
+        imageSrc={cropImageSrc}
+        aspect={cropTarget === "avatar" ? 1 : 3}
+        cropShape={cropTarget === "avatar" ? "round" : "rect"}
+        title={cropTarget === "avatar" ? "Crop Avatar" : "Crop Cover Image"}
+        onClose={() => setCropModalOpen(false)}
+        onCropComplete={handleCropComplete}
+      />
     </div>
   );
 };
