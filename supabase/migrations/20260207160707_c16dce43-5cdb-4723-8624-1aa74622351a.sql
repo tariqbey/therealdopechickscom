@@ -1,0 +1,15 @@
+
+-- Add extended profile fields for creator details
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS height TEXT,
+  ADD COLUMN IF NOT EXISTS build TEXT,
+  ADD COLUMN IF NOT EXISTS complexion TEXT,
+  ADD COLUMN IF NOT EXISTS eye_color TEXT,
+  ADD COLUMN IF NOT EXISTS hair_color TEXT,
+  ADD COLUMN IF NOT EXISTS ethnicity TEXT,
+  ADD COLUMN IF NOT EXISTS profession TEXT,
+  ADD COLUMN IF NOT EXISTS interests TEXT[],
+  ADD COLUMN IF NOT EXISTS likes TEXT[],
+  ADD COLUMN IF NOT EXISTS measurements TEXT,
+  ADD COLUMN IF NOT EXISTS location TEXT,
+  ADD COLUMN IF NOT EXISTS zodiac_sign TEXT;
