@@ -16,6 +16,7 @@ interface CreatorData {
   user_id: string;
   display_name: string | null;
   avatar_url: string | null;
+  cover_url: string | null;
   bio: string | null;
   is_creator: boolean;
   created_at: string;
@@ -158,7 +159,7 @@ const CreatorProfile = () => {
 
   const displayName = creator?.display_name || "Creator";
   const avatarUrl = creator?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=400&fit=crop&crop=face";
-  const coverUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1400&h=400&fit=crop&crop=top";
+  const coverUrl = creator?.cover_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1400&h=400&fit=crop&crop=top";
   const bio = creator?.bio || "Content creator on Dope Chicks ✨";
   const joinedDate = creator ? new Date(creator.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "";
 
