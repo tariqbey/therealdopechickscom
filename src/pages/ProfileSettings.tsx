@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useFormPersist } from "@/hooks/useFormPersist";
 import { User, Camera, Save, ArrowLeft, Crown, ExternalLink, Sparkles, ImageIcon, Loader2 } from "lucide-react";
 import { PushNotificationSettings } from "@/components/PushNotificationSettings";
 
@@ -19,15 +20,26 @@ const ProfileSettings = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
-  const [displayName, setDisplayName] = useState(profile?.display_name || "");
-  const [bio, setBio] = useState(profile?.bio || "");
-  const [isCreator, setIsCreator] = useState(profile?.is_creator || false);
+  const [displayName, setDisplayName] = useFormPersist("profile_displayName", profile?.display_name || "");
+  const [bio, setBio] = useFormPersist("profile_bio", profile?.bio || "");
+  const [isCreator, setIsCreator] = useFormPersist("profile_isCreator", profile?.is_creator || false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [generatingBio, setGeneratingBio] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || "");
-  const [coverUrl, setCoverUrl] = useState((profile as any)?.cover_url || "");
+  const [avatarUrl, setAvatarUrl] = useFormPersist("profile_avatarUrl", profile?.avatar_url || "");
+  const [coverUrl, setCoverUrl] = useFormPersist("profile_coverUrl", (profile as any)?.cover_url || "");
+
+  // Sync from profile when it loads/changes
+  useEffect(() => {
+    if (profile) {
+      setDisplayName(profile.display_name || "");
+      setBio(profile.bio || "");
+      setIsCreator(profile.is_creator || false);
+      setAvatarUrl(profile.avatar_url || "");
+      setCoverUrl((profile as any)?.cover_url || "");
+    }
+  }, [profile]);
 
   if (!user) {
     navigate("/auth");
