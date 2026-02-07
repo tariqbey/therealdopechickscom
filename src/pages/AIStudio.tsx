@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Sparkles, Image as ImageIcon, Video, Wand2, User,
-  Settings2, Coins, History, Download, Upload, Layers,
+  Settings2, Coins, History, Download, Upload, Layers, X,
 } from "lucide-react";
 
 type StudioTab = "image" | "character" | "video";
@@ -38,13 +38,47 @@ const AIStudioPage = () => {
   const [videoDuration, setVideoDuration] = useState("3 seconds");
   const [videoQuality, setVideoQuality] = useState("Standard");
   const [motionDescription, setMotionDescription] = useState("");
+  const [sourceImageUrl, setSourceImageUrl] = useState<string | null>(null);
+  const [sourceImagePreview, setSourceImagePreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { balance, spendBread } = useWallet();
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // Admin gets unlimited access
+  const isAdmin = user?.email === "drpaydex@gmail.com";
+
   const costs: Record<StudioTab, number> = { image: 25, character: 30, video: 75 };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please upload an image file.", variant: "destructive" });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${user.id}/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("ai-studio").upload(path, file);
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage.from("ai-studio").getPublicUrl(path);
+      setSourceImageUrl(urlData.publicUrl);
+      setSourceImagePreview(URL.createObjectURL(file));
+      toast({ title: "Image uploaded!", description: "Ready to generate video." });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleGenerate = async () => {
     if (!user) {
@@ -53,7 +87,7 @@ const AIStudioPage = () => {
       return;
     }
 
-    if (balance < costs[activeTab]) {
+    if (!isAdmin && balance < costs[activeTab]) {
       toast({ title: "Not enough BREAD", description: `You need ${costs[activeTab]} BREAD.`, variant: "destructive" });
       setShowBuyModal(true);
       return;
@@ -69,7 +103,7 @@ const AIStudioPage = () => {
       } else if (activeTab === "character") {
         body = { ...body, characterName, characterStyle, characterDescription: characterDesc };
       } else {
-        body = { ...body, motionPreset, duration: videoDuration, quality: videoQuality, motionDescription };
+        body = { ...body, sourceImageUrl, motionPreset, duration: videoDuration, quality: videoQuality, motionDescription };
       }
 
       const { data, error } = await supabase.functions.invoke("generate-ai", { body });
@@ -258,11 +292,42 @@ const AIStudioPage = () => {
                   <h3 className="font-bold mb-4 flex items-center gap-2">
                     <Video className="h-4 w-4 text-primary" /> Image to Video
                   </h3>
-                  <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-primary/30 transition-colors cursor-pointer mb-4">
-                    <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-sm font-medium mb-1">Upload a source image</p>
-                    <p className="text-xs text-muted-foreground">Or use an image from your AI library</p>
-                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageUpload}
+                  />
+                  {sourceImagePreview ? (
+                    <div className="relative rounded-xl overflow-hidden mb-4 max-h-64 flex items-center justify-center bg-muted">
+                      <img src={sourceImagePreview} alt="Source" className="max-h-64 object-contain" />
+                      <button
+                        onClick={() => { setSourceImageUrl(null); setSourceImagePreview(null); }}
+                        className="absolute top-2 right-2 p-1 rounded-full bg-background/80 hover:bg-background text-foreground"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-primary/30 transition-colors cursor-pointer mb-4"
+                    >
+                      {isUploading ? (
+                        <div className="animate-pulse">
+                          <Upload className="h-10 w-10 text-primary mx-auto mb-3" />
+                          <p className="text-sm font-medium mb-1">Uploading...</p>
+                        </div>
+                      ) : (
+                        <>
+                          <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                          <p className="text-sm font-medium mb-1">Click to upload a source image</p>
+                          <p className="text-xs text-muted-foreground">JPG, PNG, or WebP</p>
+                        </>
+                      )}
+                    </div>
+                  )}
                   <div className="grid md:grid-cols-3 gap-4">
                     <div>
                       <label className="text-xs font-bold text-muted-foreground mb-1 block">Duration</label>
@@ -288,8 +353,8 @@ const AIStudioPage = () => {
                     <input value={motionDescription} onChange={(e) => setMotionDescription(e.target.value)} placeholder="Describe desired movement..." className="w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                   </div>
                   <div className="flex items-center justify-between mt-5 pt-4 border-t border-border">
-                    <span className="text-sm"><span className="text-muted-foreground">Cost: </span><span className="font-bold text-gradient-gold">75 BREAD</span></span>
-                    <Button onClick={handleGenerate} disabled={isGenerating} className="bg-gradient-purple text-primary-foreground font-bold hover:opacity-90" size="sm">
+                    <span className="text-sm"><span className="text-muted-foreground">Cost: </span><span className="font-bold text-gradient-gold">{isAdmin ? "FREE (Admin)" : "75 BREAD"}</span></span>
+                    <Button onClick={handleGenerate} disabled={isGenerating || !sourceImageUrl} className="bg-gradient-purple text-primary-foreground font-bold hover:opacity-90" size="sm">
                       <Video className="h-4 w-4 mr-1" /> {isGenerating ? "Generating..." : "Generate Video"}
                     </Button>
                   </div>
