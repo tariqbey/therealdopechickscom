@@ -141,6 +141,56 @@ serve(async (req) => {
       }
       case "video": {
         if (sourceImageUrl) {
+          // Atlas wan-2.2-spicy determines video aspect ratio FROM the input image dimensions.
+          // So we must re-render the source image at the target aspect ratio first.
+          let finalImageUrl = sourceImageUrl;
+
+          if (aspectRatio && aspectRatio !== "1:1") {
+            console.log(`Re-rendering source image to ${aspectRatio} aspect ratio...`);
+            try {
+              const ratioInstruction = `Recreate this exact image but reframed/cropped to a ${aspectRatio} aspect ratio. Keep the same subject and style. Do not change the content, just adjust the framing to fit ${aspectRatio} perfectly.`;
+              const reframeResponse = await fetch(LOVABLE_AI_URL, {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  model: "google/gemini-2.5-flash-image",
+                  messages: [{
+                    role: "user",
+                    content: [
+                      { type: "text", text: ratioInstruction },
+                      { type: "image_url", image_url: { url: sourceImageUrl } },
+                    ],
+                  }],
+                  modalities: ["image", "text"],
+                }),
+              });
+
+              if (reframeResponse.ok) {
+                const reframeData = await reframeResponse.json();
+                const reframedBase64 = reframeData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+                if (reframedBase64) {
+                  // Upload the reframed image to storage
+                  const base64Content = reframedBase64.replace(/^data:image\/\w+;base64,/, "");
+                  const binaryData = Uint8Array.from(atob(base64Content), (c) => c.charCodeAt(0));
+                  const reframedPath = `${user.id}/reframed_${Date.now()}.png`;
+                  const { error: upErr } = await supabase.storage
+                    .from("ai-studio")
+                    .upload(reframedPath, binaryData, { contentType: "image/png", upsert: true });
+                  if (!upErr) {
+                    const { data: urlData } = supabase.storage.from("ai-studio").getPublicUrl(reframedPath);
+                    finalImageUrl = urlData.publicUrl;
+                    console.log(`Reframed image uploaded: ${finalImageUrl}`);
+                  }
+                }
+              }
+            } catch (reframeErr) {
+              console.error("Reframe failed, using original image:", reframeErr);
+            }
+          }
+
           // Use Atlas Cloud wan-2.2-spicy for image-to-video
           isAtlasVideo = true;
           apiUrl = ATLAS_VIDEO_URL;
@@ -148,9 +198,8 @@ serve(async (req) => {
           const videoPrompt = motionDescription || `Cinematic motion with ${motionPreset || "smooth"} camera movement`;
           requestBody = {
             model: "alibaba/wan-2.2-spicy/image-to-video",
-            image: sourceImageUrl,
+            image: finalImageUrl,
             prompt: videoPrompt,
-            ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}),
           };
         } else {
           // No source image: generate a still frame via Lovable AI
