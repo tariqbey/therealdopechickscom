@@ -3,10 +3,10 @@ import { motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import BuyBreadModal from "@/components/BuyBreadModal";
+import BuyCreditsModal from "@/components/BuyCreditsModal";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { useWallet } from "@/hooks/useWallet";
+import { useCredits } from "@/hooks/useCredits";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -40,14 +40,14 @@ const videoAspectRatios = [
 ];
 const imageAspectRatios = ["1:1", "4:5", "9:16", "16:9"];
 
-// Cost structure: API cost (cents) + $0.15 surcharge = total cost in cents → converted to BREAD
-// 1 BREAD ≈ $0.01 (500 BREAD = $4.99)
+// Cost structure: API cost (cents) + $0.15 surcharge = total cost in cents → converted to Credits
+// 1 Credit ≈ $0.01 (500 Credits = $4.99)
 const API_COSTS_CENTS: Record<StudioTab, number> = { image: 3, character: 5, video: 50 };
 const PLATFORM_FEE_CENTS = 15;
-const BREAD_COSTS: Record<StudioTab, number> = {
-  image: Math.ceil((API_COSTS_CENTS.image + PLATFORM_FEE_CENTS) / 0.998), // ~18 → 25 BREAD (rounded up for margin)
-  character: Math.ceil((API_COSTS_CENTS.character + PLATFORM_FEE_CENTS) / 0.998), // ~20 → 30 BREAD
-  video: Math.ceil((API_COSTS_CENTS.video + PLATFORM_FEE_CENTS) / 0.998), // ~65 → 75 BREAD
+const CREDIT_COSTS: Record<StudioTab, number> = {
+  image: Math.ceil((API_COSTS_CENTS.image + PLATFORM_FEE_CENTS) / 0.998),
+  character: Math.ceil((API_COSTS_CENTS.character + PLATFORM_FEE_CENTS) / 0.998),
+  video: Math.ceil((API_COSTS_CENTS.video + PLATFORM_FEE_CENTS) / 0.998),
 };
 // Override with actual pricing that includes healthy margin
 const costs: Record<StudioTab, number> = { image: 25, character: 30, video: 75 };
@@ -95,7 +95,7 @@ const AIStudioPage = () => {
   const [uploadTarget, setUploadTarget] = useState<"video" | "image">("video");
 
   const { user, profile } = useAuth();
-  const { balance } = useWallet();
+  const { creditBalance } = useCredits();
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -255,8 +255,8 @@ const AIStudioPage = () => {
       return;
     }
 
-    if (!isAdmin && balance < costs[activeTab]) {
-      toast({ title: "Not enough BREAD", description: `You need ${costs[activeTab]} BREAD.`, variant: "destructive" });
+    if (!isAdmin && creditBalance < costs[activeTab]) {
+      toast({ title: "Not enough Credits", description: `You need ${costs[activeTab]} Credits.`, variant: "destructive" });
       setShowBuyModal(true);
       return;
     }
@@ -294,13 +294,13 @@ const AIStudioPage = () => {
 
         if (images.length > 0) {
           setGeneratedResults(images);
-          toast({ title: "Generation complete!", description: isAdmin ? "No BREAD charged (Admin)" : `Cost: ${costs[activeTab]} BREAD` });
+          toast({ title: "Generation complete!", description: isAdmin ? "No Credits charged (Admin)" : `Cost: ${costs[activeTab]} Credits` });
         } else if (videoUrl) {
           setGeneratedVideoUrl(videoUrl);
-          toast({ title: "Video ready!", description: isAdmin ? "No BREAD charged (Admin)" : `Cost: ${costs[activeTab]} BREAD` });
+          toast({ title: "Video ready!", description: isAdmin ? "No Credits charged (Admin)" : `Cost: ${costs[activeTab]} Credits` });
         } else if (charUrl) {
           setGeneratedResults([charUrl]);
-          toast({ title: "Generation complete!", description: isAdmin ? "No BREAD charged (Admin)" : `Cost: ${costs[activeTab]} BREAD` });
+          toast({ title: "Generation complete!", description: isAdmin ? "No Credits charged (Admin)" : `Cost: ${costs[activeTab]} Credits` });
         } else if (aiText) {
           toast({ title: "Generation declined", description: aiText, variant: "destructive" });
         } else {
@@ -324,7 +324,7 @@ const AIStudioPage = () => {
     const apiCost = (API_COSTS_CENTS[tab] / 100).toFixed(2);
     const fee = (PLATFORM_FEE_CENTS / 100).toFixed(2);
     const total = ((API_COSTS_CENTS[tab] + PLATFORM_FEE_CENTS) / 100).toFixed(2);
-    return { apiCost, fee, total, bread: costs[tab] };
+    return { apiCost, fee, total, credits: costs[tab] };
   };
 
   return (
@@ -339,22 +339,22 @@ const AIStudioPage = () => {
             <span className="text-xs font-bold uppercase tracking-widest text-primary">Creator Tools</span>
           </div>
           <h1 className="text-4xl font-black mb-2">AI Studio</h1>
-          <p className="text-muted-foreground max-w-lg">Generate stunning content with cutting-edge AI. Every generation costs BREAD.</p>
+          <p className="text-muted-foreground max-w-lg">Generate stunning content with cutting-edge AI. Every generation costs Credits.</p>
         </motion.div>
 
-        {/* BREAD Balance Banner */}
-        <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-card border border-accent/20 glow-gold mb-8">
+        {/* Credits Balance Banner */}
+        <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-card border border-primary/20 mb-8">
           <div className="flex items-center gap-3">
-            <Coins className="h-6 w-6 text-accent" />
+            <Sparkles className="h-6 w-6 text-primary" />
             <div>
-              <p className="text-xs text-muted-foreground">Your Balance</p>
-              <p className="text-2xl font-black text-gradient-gold">
-                {user ? (isAdmin ? "∞ BREAD (Admin)" : `${balance} BREAD`) : "Log in to see balance"}
+              <p className="text-xs text-muted-foreground">Your Credits</p>
+              <p className="text-2xl font-black text-primary">
+                {user ? (isAdmin ? "∞ Credits (Admin)" : `${creditBalance} Credits`) : "Log in to see balance"}
               </p>
             </div>
           </div>
           <Button onClick={() => user ? setShowBuyModal(true) : navigate("/auth")} className="bg-gradient-purple text-primary-foreground font-bold hover:opacity-90" size="sm">
-            {user ? "Buy More" : "Log In"}
+            {user ? "Buy Credits" : "Log In"}
           </Button>
         </div>
 
@@ -675,7 +675,7 @@ const AIStudioPage = () => {
       </div>
 
       <Footer />
-      <BuyBreadModal open={showBuyModal} onClose={() => setShowBuyModal(false)} />
+      <BuyCreditsModal open={showBuyModal} onClose={() => setShowBuyModal(false)} />
 
       {/* Image Upload Disclaimer Dialog */}
       <AlertDialog open={showDisclaimer} onOpenChange={setShowDisclaimer}>
@@ -752,13 +752,13 @@ const CostBreakdown = ({
 }: {
   tab: StudioTab;
   isAdmin: boolean;
-  breakdown: { apiCost: string; fee: string; total: string; bread: number };
+  breakdown: { apiCost: string; fee: string; total: string; credits: number };
 }) => (
   <div className="mt-5 pt-4 border-t border-border">
     <div className="flex items-center justify-between mb-1">
       <span className="text-sm text-muted-foreground">Cost Breakdown</span>
-      <span className="font-bold text-gradient-gold text-sm">
-        {isAdmin ? "FREE (Admin)" : `${breakdown.bread} BREAD`}
+      <span className="font-bold text-primary text-sm">
+        {isAdmin ? "FREE (Admin)" : `${breakdown.credits} Credits`}
       </span>
     </div>
     {!isAdmin && (
@@ -773,7 +773,7 @@ const CostBreakdown = ({
         </div>
         <div className="flex justify-between border-t border-border/50 pt-1 mt-1 text-foreground font-medium">
           <span>Total</span>
-          <span>${breakdown.total} → {breakdown.bread} BREAD</span>
+          <span>${breakdown.total} → {breakdown.credits} Credits</span>
         </div>
       </div>
     )}

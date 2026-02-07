@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Menu, X, Search, LogOut, Coins, Settings, UserCircle, MessageCircle } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Menu, X, LogOut, Coins, Settings, UserCircle, MessageCircle, Sparkles } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import logo from "@/assets/logo.png";
@@ -15,8 +15,10 @@ const navLinks = [
 
 const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { user, profile, wallet, signOut } = useAuth();
+  const { user, profile, wallet, creditWallet, signOut } = useAuth();
   const navigate = useNavigate();
+
+  const isCreator = profile?.is_creator;
 
   return (
     <motion.nav
@@ -46,12 +48,20 @@ const Navbar = () => {
         <div className="hidden md:flex items-center gap-3">
           {user ? (
             <>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted border border-border">
-                <Coins className="h-3.5 w-3.5 text-accent" />
-                <span className="text-xs font-bold text-gradient-gold">{wallet?.balance ?? 0}</span>
-              </div>
+              {/* Show BREAD for fans, CREDITS for creators */}
+              {isCreator ? (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted border border-primary/30">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  <span className="text-xs font-bold text-primary">{creditWallet?.balance ?? 0} Credits</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted border border-border">
+                  <Coins className="h-3.5 w-3.5 text-accent" />
+                  <span className="text-xs font-bold text-gradient-gold">{wallet?.balance ?? 0} BREAD</span>
+                </div>
+              )}
               <span className="text-sm text-muted-foreground">{profile?.display_name || user.email}</span>
-              {profile?.is_creator && (
+              {isCreator && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -108,8 +118,17 @@ const Navbar = () => {
             {user ? (
               <div className="flex items-center justify-between pt-2">
                 <div className="flex items-center gap-2">
-                  <Coins className="h-4 w-4 text-accent" />
-                  <span className="text-sm font-bold text-gradient-gold">{wallet?.balance ?? 0} BREAD</span>
+                  {isCreator ? (
+                    <>
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-bold text-primary">{creditWallet?.balance ?? 0} Credits</span>
+                    </>
+                  ) : (
+                    <>
+                      <Coins className="h-4 w-4 text-accent" />
+                      <span className="text-sm font-bold text-gradient-gold">{wallet?.balance ?? 0} BREAD</span>
+                    </>
+                  )}
                 </div>
                 <Button variant="ghost" size="sm" onClick={signOut}>Sign Out</Button>
               </div>
