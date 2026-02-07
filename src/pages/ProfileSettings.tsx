@@ -166,8 +166,8 @@ const ProfileSettings = () => {
       <Navbar />
       <div className="container mx-auto px-4 pt-24 pb-12 max-w-2xl">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6">
-            <ArrowLeft className="h-4 w-4" /> Back
+          <button onClick={() => navigate("/settings")} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6">
+            <ArrowLeft className="h-4 w-4" /> Back to Settings
           </button>
 
           <h1 className="text-3xl font-black mb-6">Profile Settings</h1>
