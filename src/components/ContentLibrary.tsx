@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
   Image as ImageIcon, Video, Download, Wand2, Plus,
-  X, Loader2, Eye, Layers, ExternalLink,
+  X, Loader2, Eye, Layers, ExternalLink, Film,
 } from "lucide-react";
 
 interface LibraryItem {
@@ -21,10 +21,11 @@ interface LibraryItem {
 
 interface ContentLibraryProps {
   onAnimateToVideo: (imageUrl: string) => void;
+  onEditInTimeline?: (url: string, type: "image" | "video") => void;
   onClose: () => void;
 }
 
-const ContentLibrary = ({ onAnimateToVideo, onClose }: ContentLibraryProps) => {
+const ContentLibrary = ({ onAnimateToVideo, onEditInTimeline, onClose }: ContentLibraryProps) => {
   const { user, profile } = useAuth();
   const { toast } = useToast();
   const [items, setItems] = useState<LibraryItem[]>([]);
@@ -202,6 +203,18 @@ const ContentLibrary = ({ onAnimateToVideo, onClose }: ContentLibraryProps) => {
                       </Button>
                     )}
 
+                    {/* Edit in Timeline */}
+                    {onEditInTimeline && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[11px] w-full max-w-[140px]"
+                        onClick={() => { onEditInTimeline(item.result_url, isVideo ? "video" : "image"); onClose(); }}
+                      >
+                        <Film className="h-3 w-3 mr-1" /> Edit in Timeline
+                      </Button>
+                    )}
+
                     {/* Add to Profile */}
                     {profile?.is_creator && (
                       <Button
@@ -295,6 +308,11 @@ const ContentLibrary = ({ onAnimateToVideo, onClose }: ContentLibraryProps) => {
                   {previewItem.generation_type !== "video" && (
                     <Button size="sm" variant="outline" onClick={() => { onAnimateToVideo(previewItem.result_url); onClose(); setPreviewItem(null); }}>
                       <Video className="h-4 w-4 mr-1" /> Animate to Video
+                    </Button>
+                  )}
+                  {onEditInTimeline && (
+                    <Button size="sm" variant="outline" onClick={() => { onEditInTimeline(previewItem.result_url, previewItem.generation_type === "video" ? "video" : "image"); onClose(); setPreviewItem(null); }}>
+                      <Film className="h-4 w-4 mr-1" /> Edit in Timeline
                     </Button>
                   )}
                   {profile?.is_creator && (

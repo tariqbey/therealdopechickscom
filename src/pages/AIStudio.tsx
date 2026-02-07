@@ -70,7 +70,8 @@ const AIStudioPage = () => {
   const [showBuyModal, setShowBuyModal] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const [showTimelineEditor, setShowTimelineEditor] = useState(false);
-  
+  const [timelineMediaUrl, setTimelineMediaUrl] = useState<string | undefined>();
+  const [timelineMediaType, setTimelineMediaType] = useState<"image" | "video">("video");
 
   // Character state
   const [characterName, setCharacterName] = useState("");
@@ -141,6 +142,13 @@ const AIStudioPage = () => {
     setSourceImageUrl(imageUrl);
     setSourceImagePreview(imageUrl);
     toast({ title: "Image loaded", description: "Your image is ready to animate. Set your preferences and generate!" });
+  };
+
+  const handleEditInTimeline = (url: string, type: "image" | "video") => {
+    setTimelineMediaUrl(url);
+    setTimelineMediaType(type);
+    setShowTimelineEditor(true);
+    setShowLibrary(false);
   };
 
   const handleSaveToLibrary = async (url: string) => {
@@ -414,6 +422,7 @@ const AIStudioPage = () => {
           {showLibrary && (
             <ContentLibrary
               onAnimateToVideo={handleAnimateToVideo}
+              onEditInTimeline={handleEditInTimeline}
               onClose={() => setShowLibrary(false)}
             />
           )}
@@ -705,10 +714,10 @@ const AIStudioPage = () => {
       {/* Timeline Editor - opens as fullscreen overlay */}
       {showTimelineEditor && (
         <MediaEditor
-          mediaUrl=""
-          mediaType="video"
+          mediaUrl={timelineMediaUrl || ""}
+          mediaType={timelineMediaType}
           open={showTimelineEditor}
-          onClose={() => setShowTimelineEditor(false)}
+          onClose={() => { setShowTimelineEditor(false); setTimelineMediaUrl(undefined); }}
         />
       )}
 
