@@ -56,6 +56,48 @@ export type Database = {
         }
         Relationships: []
       }
+      creator_posts: {
+        Row: {
+          created_at: string
+          creator_id: string
+          description: string | null
+          id: string
+          is_locked: boolean
+          likes_count: number
+          media_type: string
+          media_url: string
+          min_tier: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          creator_id: string
+          description?: string | null
+          id?: string
+          is_locked?: boolean
+          likes_count?: number
+          media_type?: string
+          media_url: string
+          min_tier?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          creator_id?: string
+          description?: string | null
+          id?: string
+          is_locked?: boolean
+          likes_count?: number
+          media_type?: string
+          media_url?: string
+          min_tier?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       creator_subscription_tiers: {
         Row: {
           created_at: string
@@ -141,6 +183,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      platform_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
