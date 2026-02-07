@@ -38,14 +38,23 @@ serve(async (req) => {
     const costs: Record<string, number> = { image: 25, character: 30, video: 75 };
     const cost = costs[type] || 25;
 
-    // Check balance
+    // Check if user is admin (unlimited BREAD)
+    const { data: roleData } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .maybeSingle();
+    const isAdmin = !!roleData;
+
+    // Check balance (skip for admin)
     const { data: wallet } = await supabase
       .from("wallets")
       .select("balance")
       .eq("user_id", user.id)
       .single();
 
-    if (!wallet || wallet.balance < cost) {
+    if (!isAdmin && (!wallet || wallet.balance < cost)) {
       return new Response(JSON.stringify({ error: "Insufficient BREAD balance", required: cost, balance: wallet?.balance ?? 0 }), {
         status: 402,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -115,15 +124,17 @@ serve(async (req) => {
 
     const atlasData = await atlasResponse.json();
 
-    // Deduct BREAD
-    await supabase.from("wallets").update({ balance: wallet.balance - cost }).eq("user_id", user.id);
-    await supabase.from("wallet_transactions").insert({
-      user_id: user.id,
-      amount: -cost,
-      type: "spend",
-      description: `AI ${type} generation`,
-      reference_id: generation.id,
-    });
+    // Deduct BREAD (skip for admin)
+    if (!isAdmin && wallet) {
+      await supabase.from("wallets").update({ balance: wallet.balance - cost }).eq("user_id", user.id);
+      await supabase.from("wallet_transactions").insert({
+        user_id: user.id,
+        amount: -cost,
+        type: "spend",
+        description: `AI ${type} generation`,
+        reference_id: generation.id,
+      });
+    }
 
     // Update generation record
     const resultUrl = atlasData.images?.[0]?.url || atlasData.character?.thumbnail_url || atlasData.video?.url || null;
