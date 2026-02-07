@@ -1,17 +1,21 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import {
   Heart, Lock, Star, Crown, MessageCircle, Share2,
-  Image as ImageIcon, Video, Calendar, Users, Eye, DollarSign,
+  Image as ImageIcon, Video, Calendar, Users, Eye, Loader2, CheckCircle2,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 const creator = {
   name: "Jasmine Luxe",
   handle: "jasmineluxe",
+  creatorUserId: null as string | null, // Will be dynamic later
   avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=400&fit=crop&crop=face",
   cover: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1400&h=400&fit=crop&crop=top",
   bio: "Professional model & content creator 💋 Exclusive behind-the-scenes, glamour shoots, and premium content. Your favorite bad girl next door ✨",
@@ -25,23 +29,23 @@ const creator = {
   isVerified: true,
 };
 
-const tiers = [
+const defaultTiers = [
   {
     name: "Bronze",
-    price: 25,
+    price_cents: 499,
     color: "from-amber-700 to-amber-900",
     features: ["Access to basic posts", "Like & comment", "Monthly newsletter"],
   },
   {
     name: "Silver",
-    price: 50,
+    price_cents: 999,
     color: "from-gray-400 to-gray-600",
     features: ["Everything in Bronze", "Exclusive photo sets", "Behind-the-scenes content", "Priority DMs"],
     popular: true,
   },
   {
     name: "Gold",
-    price: 100,
+    price_cents: 2499,
     color: "from-yellow-500 to-amber-600",
     features: ["Everything in Silver", "Custom content requests", "1-on-1 video calls", "Early access to new drops", "Exclusive merch discounts"],
   },
@@ -61,10 +65,82 @@ const contentGrid = [
 
 const CreatorProfile = () => {
   const [activeTab, setActiveTab] = useState<"all" | "photos" | "videos">("all");
+  const [subscribingTier, setSubscribingTier] = useState<string | null>(null);
+  const [activeSubscription, setActiveSubscription] = useState<{ tier: string; subscriptionEnd: string } | null>(null);
+  const [checkingSubscription, setCheckingSubscription] = useState(false);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
 
   const filtered = contentGrid.filter((c) =>
     activeTab === "all" ? true : activeTab === "photos" ? c.type === "photo" : c.type === "video"
   );
+
+  // Check subscription status on load
+  useEffect(() => {
+    if (user && creator.creatorUserId) {
+      checkSubscription();
+    }
+  }, [user]);
+
+  const checkSubscription = async () => {
+    if (!creator.creatorUserId) return;
+    setCheckingSubscription(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("check-creator-subscription", {
+        body: { creatorId: creator.creatorUserId },
+      });
+      if (!error && data?.subscribed) {
+        setActiveSubscription({
+          tier: data.tier,
+          subscriptionEnd: data.subscription_end,
+        });
+      }
+    } catch (err) {
+      console.error("Error checking subscription:", err);
+    } finally {
+      setCheckingSubscription(false);
+    }
+  };
+
+  const handleSubscribe = async (tierIndex: number) => {
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+
+    const tier = defaultTiers[tierIndex];
+    setSubscribingTier(tier.name);
+
+    try {
+      // For now, since tiers aren't in DB yet for this demo creator,
+      // we'll show a toast. In production, this would call the edge function.
+      if (!creator.creatorUserId) {
+        toast({
+          title: "Demo Mode",
+          description: `Subscription to ${tier.name} tier ($${(tier.price_cents / 100).toFixed(2)}/mo) would be processed via Stripe in production.`,
+        });
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke("create-creator-checkout", {
+        body: { tierId: tier.name }, // Would be actual tier ID from DB
+      });
+
+      if (error) throw error;
+      if (data?.url) {
+        window.open(data.url, "_blank");
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to start checkout",
+        variant: "destructive",
+      });
+    } finally {
+      setSubscribingTier(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -136,45 +212,65 @@ const CreatorProfile = () => {
             <Star className="h-5 w-5 text-accent" /> Subscription Tiers
           </h2>
           <div className="grid md:grid-cols-3 gap-4">
-            {tiers.map((tier) => (
-              <div
-                key={tier.name}
-                className={`relative rounded-xl p-5 border transition-colors ${
-                  tier.popular
-                    ? "border-primary/50 glow-purple"
-                    : "border-border"
-                } bg-gradient-card`}
-              >
-                {tier.popular && (
-                  <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground rounded-full">
-                    Most Popular
-                  </span>
-                )}
-                <div className={`inline-block px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r ${tier.color} text-primary-foreground mb-3`}>
-                  {tier.name}
-                </div>
-                <div className="flex items-baseline gap-1 mb-3">
-                  <span className="text-3xl font-black text-gradient-gold">{tier.price}</span>
-                  <span className="text-sm text-muted-foreground">BREAD/mo</span>
-                </div>
-                <ul className="space-y-2 mb-4">
-                  {tier.features.map((f) => (
-                    <li key={f} className="text-xs text-muted-foreground flex items-start gap-2">
-                      <span className="text-primary mt-0.5">✓</span> {f}
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  className={`w-full font-bold text-sm ${
-                    tier.popular
-                      ? "bg-gradient-purple text-primary-foreground hover:opacity-90"
-                      : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                  }`}
+            {defaultTiers.map((tier, index) => {
+              const isCurrentTier = activeSubscription?.tier === tier.name;
+              return (
+                <div
+                  key={tier.name}
+                  className={`relative rounded-xl p-5 border transition-colors ${
+                    isCurrentTier
+                      ? "border-accent/60 glow-gold"
+                      : tier.popular
+                      ? "border-primary/50 glow-purple"
+                      : "border-border"
+                  } bg-gradient-card`}
                 >
-                  Subscribe
-                </Button>
-              </div>
-            ))}
+                  {isCurrentTier && (
+                    <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-accent text-accent-foreground rounded-full flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Your Plan
+                    </span>
+                  )}
+                  {!isCurrentTier && tier.popular && (
+                    <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground rounded-full">
+                      Most Popular
+                    </span>
+                  )}
+                  <div className={`inline-block px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r ${tier.color} text-primary-foreground mb-3`}>
+                    {tier.name}
+                  </div>
+                  <div className="flex items-baseline gap-1 mb-3">
+                    <span className="text-3xl font-black text-gradient-gold">${(tier.price_cents / 100).toFixed(2)}</span>
+                    <span className="text-sm text-muted-foreground">/mo</span>
+                  </div>
+                  <ul className="space-y-2 mb-4">
+                    {tier.features.map((f) => (
+                      <li key={f} className="text-xs text-muted-foreground flex items-start gap-2">
+                        <span className="text-primary mt-0.5">✓</span> {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <Button
+                    onClick={() => handleSubscribe(index)}
+                    disabled={isCurrentTier || subscribingTier === tier.name}
+                    className={`w-full font-bold text-sm ${
+                      isCurrentTier
+                        ? "bg-accent/20 text-accent cursor-default"
+                        : tier.popular
+                        ? "bg-gradient-purple text-primary-foreground hover:opacity-90"
+                        : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    }`}
+                  >
+                    {subscribingTier === tier.name ? (
+                      <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Processing...</>
+                    ) : isCurrentTier ? (
+                      "Subscribed"
+                    ) : (
+                      "Subscribe"
+                    )}
+                  </Button>
+                </div>
+              );
+            })}
           </div>
         </motion.div>
 

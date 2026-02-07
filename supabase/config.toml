@@ -17,3 +17,9 @@ verify_jwt = false
 
 [functions.get-vapid-key]
 verify_jwt = false
+
+[functions.create-creator-checkout]
+verify_jwt = false
+
+[functions.check-creator-subscription]
+verify_jwt = false
