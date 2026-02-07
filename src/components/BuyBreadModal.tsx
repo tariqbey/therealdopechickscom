@@ -24,7 +24,7 @@ const BuyBreadModal = ({ open, onClose }: BuyBreadModalProps) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg mx-4 rounded-xl bg-gradient-card border border-border p-6">
+      <div className="w-full max-w-2xl mx-4 rounded-xl bg-gradient-card border border-border p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl font-black">Buy BREAD Credits</h2>
@@ -35,33 +35,29 @@ const BuyBreadModal = ({ open, onClose }: BuyBreadModalProps) => {
           </button>
         </div>
 
-        <div className="grid gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {BREAD_PACKAGES.map((pkg) => (
             <div
               key={pkg.id}
-              className={`relative flex items-center justify-between p-4 rounded-xl border transition-colors ${
+              className={`relative flex flex-col items-center p-4 rounded-xl border transition-colors ${
                 pkg.popular ? "border-accent bg-accent/5" : "border-border hover:border-primary/30"
               }`}
             >
               {pkg.popular && (
-                <span className="absolute -top-2.5 left-4 px-2 py-0.5 bg-accent text-accent-foreground text-[10px] font-bold uppercase rounded-full">
+                <span className="absolute -top-2.5 px-2 py-0.5 bg-accent text-accent-foreground text-[10px] font-bold uppercase rounded-full">
                   Best Value
                 </span>
               )}
-              <div className="flex items-center gap-3">
-                <Coins className="h-6 w-6 text-accent" />
-                <div>
-                  <p className="font-bold">{pkg.name}</p>
-                  <p className="text-sm text-muted-foreground">{pkg.price}</p>
-                </div>
-              </div>
+              <div className="text-xl font-black text-gradient-gold">{pkg.amount}</div>
+              <div className="text-[10px] text-muted-foreground mb-1">BREAD</div>
+              <div className="text-sm font-bold mb-2">{pkg.price}</div>
               <Button
                 size="sm"
                 disabled={loading === pkg.id || !user}
                 onClick={() => handlePurchase(pkg.priceId, pkg.id)}
-                className="bg-gradient-purple text-primary-foreground font-bold hover:opacity-90"
+                className="w-full bg-gradient-purple text-primary-foreground font-bold hover:opacity-90 h-8 text-xs"
               >
-                {loading === pkg.id ? "..." : <><ShoppingCart className="h-4 w-4 mr-1" /> Buy</>}
+                {loading === pkg.id ? "..." : <><ShoppingCart className="h-3 w-3 mr-1" /> Buy</>}
               </Button>
             </div>
           ))}
