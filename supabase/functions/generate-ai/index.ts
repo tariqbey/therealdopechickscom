@@ -208,21 +208,38 @@ serve(async (req) => {
     let textContent = "";
 
     if (isAtlasVideo) {
-      // Atlas Cloud generateVideo returns { code, data: { outputs: [url, ...], status, ... } }
-      const atlasData = aiData.data || aiData;
-      const outputs = atlasData.outputs || atlasData.output || [];
-      if (typeof outputs === "string") {
-        videoUrl = outputs;
-      } else if (Array.isArray(outputs)) {
-        for (const url of outputs) {
-          if (url && typeof url === "string") {
-            videoUrl = videoUrl || url;
-          }
-        }
+      // Atlas Cloud generateVideo is ASYNC - returns a job ID to poll
+      const atlasJobId = aiData.id || aiData.data?.id;
+      const atlasStatus = aiData.status || aiData.data?.status || "processing";
+      
+      // Update generation record with atlas job ID for polling
+      await supabase.from("ai_generations").update({
+        status: "processing",
+        metadata: { ...body, atlas_job_id: atlasJobId, atlas_status: atlasStatus },
+      }).eq("id", generation.id);
+
+      // Deduct BREAD immediately (skip for admin)
+      if (!isAdmin && wallet) {
+        await supabase.from("wallets").update({ balance: wallet.balance - cost }).eq("user_id", user.id);
+        await supabase.from("wallet_transactions").insert({
+          user_id: user.id,
+          amount: -cost,
+          type: "spend",
+          description: `AI ${type} generation`,
+          reference_id: generation.id,
+        });
       }
-      // Also check for video_url directly
-      if (!videoUrl) videoUrl = atlasData.video_url || atlasData.video || null;
-      if (!videoUrl) textContent = atlasData.status || aiData.message || "No video generated";
+
+      return new Response(JSON.stringify({
+        success: true,
+        generation_id: generation.id,
+        atlas_job_id: atlasJobId,
+        polling: true,
+        result: { images: [], video: null, text: `Video generation started (${atlasStatus})` },
+        new_balance: isAdmin ? wallet?.balance ?? 0 : (wallet?.balance ?? 0) - cost,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     } else if (isAtlasImage) {
       // Atlas Cloud generateImage returns { code, data: { outputs: [url, ...], status, ... } }
       const atlasData = aiData.data || aiData;
