@@ -8,6 +8,7 @@ const corsHeaders = {
 
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const ATLAS_IMAGE_URL = "https://api.atlascloud.ai/api/v1/model/generateImage";
+const ATLAS_VIDEO_URL = "https://api.atlascloud.ai/api/v1/model/generateVideo";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -93,6 +94,7 @@ serve(async (req) => {
     let apiKey: string;
     let requestBody: Record<string, unknown>;
     let isAtlasImage = false;
+    let isAtlasVideo = false;
 
     switch (type) {
       case "image": {
@@ -138,26 +140,29 @@ serve(async (req) => {
         break;
       }
       case "video": {
-        apiUrl = LOVABLE_AI_URL;
-        apiKey = LOVABLE_API_KEY;
-        const motionText = motionPreset ? ` with ${motionPreset} motion` : "";
-        const messages: Array<Record<string, unknown>> = [];
         if (sourceImageUrl) {
-          messages.push({
-            role: "user",
-            content: [
-              { type: "text", text: `Transform this image into a cinematic frame${motionText}. ${motionDescription || "Add dynamic energy suitable for animation."}` },
-              { type: "image_url", image_url: { url: sourceImageUrl } }
-            ]
-          });
+          // Use Atlas Cloud wan-2.2-spicy for image-to-video
+          isAtlasVideo = true;
+          apiUrl = ATLAS_VIDEO_URL;
+          apiKey = ATLAS_API_KEY;
+          const videoPrompt = motionDescription || `Cinematic motion with ${motionPreset || "smooth"} camera movement`;
+          requestBody = {
+            model: "alibaba/wan-2.2-spicy/image-to-video",
+            image: sourceImageUrl,
+            prompt: videoPrompt,
+            enable_sync_mode: true,
+          };
         } else {
-          messages.push({ role: "user", content: `Create a cinematic still frame${motionText} suitable for animation. ${motionDescription || prompt || "A dynamic scene ready for animation."}. Ultra high resolution.` });
+          // No source image: generate a still frame via Lovable AI
+          apiUrl = LOVABLE_AI_URL;
+          apiKey = LOVABLE_API_KEY;
+          const motionText = motionPreset ? ` with ${motionPreset} motion` : "";
+          requestBody = {
+            model: "google/gemini-2.5-flash-image",
+            messages: [{ role: "user", content: `Create a cinematic still frame${motionText} suitable for animation. ${motionDescription || prompt || "A dynamic scene ready for animation."}. Ultra high resolution.` }],
+            modalities: ["image", "text"],
+          };
         }
-        requestBody = {
-          model: "google/gemini-2.5-flash-image",
-          messages,
-          modalities: ["image", "text"],
-        };
         break;
       }
       default:
@@ -199,9 +204,26 @@ serve(async (req) => {
 
     // Parse results
     const imageUrls: string[] = [];
+    let videoUrl: string | null = null;
     let textContent = "";
 
-    if (isAtlasImage) {
+    if (isAtlasVideo) {
+      // Atlas Cloud generateVideo returns { code, data: { outputs: [url, ...], status, ... } }
+      const atlasData = aiData.data || aiData;
+      const outputs = atlasData.outputs || atlasData.output || [];
+      if (typeof outputs === "string") {
+        videoUrl = outputs;
+      } else if (Array.isArray(outputs)) {
+        for (const url of outputs) {
+          if (url && typeof url === "string") {
+            videoUrl = videoUrl || url;
+          }
+        }
+      }
+      // Also check for video_url directly
+      if (!videoUrl) videoUrl = atlasData.video_url || atlasData.video || null;
+      if (!videoUrl) textContent = atlasData.status || aiData.message || "No video generated";
+    } else if (isAtlasImage) {
       // Atlas Cloud generateImage returns { code, data: { outputs: [url, ...], status, ... } }
       const atlasData = aiData.data || aiData;
       const outputs = atlasData.outputs || [];
@@ -235,7 +257,7 @@ serve(async (req) => {
       }
     }
 
-    const resultUrl = imageUrls[0] || null;
+    const resultUrl = videoUrl || imageUrls[0] || null;
 
     // Deduct BREAD (skip for admin)
     if (!isAdmin && wallet) {
@@ -259,7 +281,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({
       success: true,
       generation_id: generation.id,
-      result: { images: imageUrls.map(url => ({ url })), text: textContent },
+      result: { images: imageUrls.map(url => ({ url })), video: videoUrl ? { url: videoUrl } : null, text: textContent },
       new_balance: isAdmin ? wallet?.balance ?? 0 : (wallet?.balance ?? 0) - cost,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
