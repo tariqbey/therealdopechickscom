@@ -24,6 +24,8 @@ import {
   Sparkles, Image as ImageIcon, Video, Wand2, User,
   Coins, History, Upload, Layers, X, ShieldAlert,
 } from "lucide-react";
+import GenerationProgress from "@/components/GenerationProgress";
+import GeneratedResultCard from "@/components/GeneratedResultCard";
 
 type StudioTab = "image" | "character" | "video";
 
@@ -84,6 +86,29 @@ const AIStudioPage = () => {
   const navigate = useNavigate();
 
   const isAdmin = user?.email === "drpaydex@gmail.com";
+
+  const handleAnimateToVideo = (imageUrl: string) => {
+    setActiveTab("video");
+    setSourceImageUrl(imageUrl);
+    setSourceImagePreview(imageUrl);
+    toast({ title: "Image loaded", description: "Your image is ready to animate. Set your preferences and generate!" });
+  };
+
+  const handleSaveToLibrary = async (imageUrl: string) => {
+    if (!user) throw new Error("Not logged in");
+    // Save a record to ai_generations as a "saved" item
+    const { error } = await supabase.from("ai_generations").insert({
+      user_id: user.id,
+      generation_type: "saved",
+      prompt: "Saved from AI Studio",
+      result_url: imageUrl,
+      status: "completed",
+      cost: 0,
+      api_cost_cents: 0,
+      platform_fee_cents: 0,
+    });
+    if (error) throw error;
+  };
 
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>, target: "video" | "image") => {
     const file = e.target.files?.[0];
@@ -344,23 +369,33 @@ const AIStudioPage = () => {
                   </div>
                 </div>
 
-                <div>
-                  <h3 className="text-sm font-bold mb-3">Generated Results</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {generatedResults.length > 0 ? generatedResults.map((url, i) => (
-                      <div key={i} className="aspect-square rounded-xl border border-border overflow-hidden">
-                        <img src={url} alt={`Generated ${i + 1}`} className="w-full h-full object-cover" />
-                      </div>
-                    )) : [1, 2, 3, 4].map((i) => (
-                      <div key={i} className="aspect-square rounded-xl bg-gradient-card border border-border flex items-center justify-center group hover:border-primary/30 transition-colors cursor-pointer">
-                        <div className="text-center">
-                          <Sparkles className="h-8 w-8 text-primary/20 mx-auto mb-2 animate-pulse" />
-                          <span className="text-xs text-muted-foreground">Generate to see results</span>
+                {/* Generation Progress */}
+                <GenerationProgress isGenerating={isGenerating} type={activeTab} />
+
+                {/* Generated Results */}
+                {!isGenerating && (
+                  <div>
+                    <h3 className="text-sm font-bold mb-3">Generated Results</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {generatedResults.length > 0 ? generatedResults.map((url, i) => (
+                        <GeneratedResultCard
+                          key={i}
+                          url={url}
+                          index={i}
+                          onAnimateToVideo={handleAnimateToVideo}
+                          onSaveToLibrary={handleSaveToLibrary}
+                        />
+                      )) : [1, 2, 3, 4].map((i) => (
+                        <div key={i} className="aspect-square rounded-xl bg-gradient-card border border-border flex items-center justify-center group hover:border-primary/30 transition-colors cursor-pointer">
+                          <div className="text-center">
+                            <Sparkles className="h-8 w-8 text-primary/20 mx-auto mb-2 animate-pulse" />
+                            <span className="text-xs text-muted-foreground">Generate to see results</span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </motion.div>
             )}
 
