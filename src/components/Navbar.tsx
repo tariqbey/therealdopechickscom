@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Menu, X, Search, LogOut, Coins, Settings, UserCircle } from "lucide-react";
+import { Menu, X, Search, LogOut, Coins, Settings, UserCircle, MessageCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -61,6 +61,9 @@ const Navbar = () => {
                   <UserCircle className="h-4 w-4 mr-1" /> My Profile
                 </Button>
               )}
+              <Button variant="ghost" size="icon" onClick={() => navigate("/messages")} className="text-muted-foreground hover:text-foreground">
+                <MessageCircle className="h-4 w-4" />
+              </Button>
               <Button variant="ghost" size="icon" onClick={() => navigate("/settings")} className="text-muted-foreground hover:text-foreground">
                 <Settings className="h-4 w-4" />
               </Button>

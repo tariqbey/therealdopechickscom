@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Coins, Zap, Shield, ArrowRight } from "lucide-react";
 
 const packages = [
+  { amount: 50, price: 4.99, popular: false },
   { amount: 100, price: 10, popular: false },
   { amount: 250, price: 20, popular: false },
   { amount: 500, price: 40, popular: true },
@@ -37,7 +38,7 @@ const BreadSection = () => {
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 max-w-4xl mx-auto mb-12">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 max-w-5xl mx-auto mb-12">
           {packages.map((pkg, i) => (
             <motion.div
               key={pkg.amount}
@@ -58,7 +59,7 @@ const BreadSection = () => {
               )}
               <div className="text-2xl font-black text-gradient-gold mb-1">{pkg.amount}</div>
               <div className="text-xs text-muted-foreground mb-1">BREAD</div>
-              <div className="text-lg font-bold text-foreground">${pkg.price}</div>
+              <div className="text-lg font-bold text-foreground">${pkg.price.toFixed(2)}</div>
               <Button
                 size="sm"
                 className="w-full mt-3 h-8 text-xs bg-gradient-purple text-primary-foreground font-semibold hover:opacity-90"

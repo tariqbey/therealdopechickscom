@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import CreatorContentManager from "@/components/CreatorContentManager";
+import CreatorProfileEditor from "@/components/CreatorProfileEditor";
 
 interface CreatorData {
   user_id: string;
@@ -67,7 +68,7 @@ const dummyContent = [
 
 const CreatorProfile = () => {
   const { handle } = useParams<{ handle: string }>();
-  const [activeTab, setActiveTab] = useState<"all" | "photos" | "videos" | "manage">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "photos" | "videos" | "manage" | "edit">("all");
   const [subscribingTier, setSubscribingTier] = useState<string | null>(null);
   const [activeSubscription, setActiveSubscription] = useState<{ tier: string; subscriptionEnd: string } | null>(null);
   const [checkingSubscription, setCheckingSubscription] = useState(false);
@@ -258,7 +259,10 @@ const CreatorProfile = () => {
             <Button variant="outline" size="icon" className="border-border text-muted-foreground hover:text-foreground">
               <Heart className="h-4 w-4" />
             </Button>
-            <Button className="bg-gradient-purple text-primary-foreground font-bold hover:opacity-90">
+            <Button
+              className="bg-gradient-purple text-primary-foreground font-bold hover:opacity-90"
+              onClick={() => navigate(`/messages?to=${creator?.user_id}`)}
+            >
               <MessageCircle className="h-4 w-4 mr-2" /> Message
             </Button>
           </div>
@@ -338,7 +342,7 @@ const CreatorProfile = () => {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-black">Content</h2>
             <div className="flex gap-1">
-              {(["all", "photos", "videos", ...(isOwnProfile ? ["manage" as const] : [])] as const).map((tab) => (
+              {(["all", "photos", "videos", ...(isOwnProfile ? ["manage" as const, "edit" as const] : [])] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab as any)}
@@ -348,6 +352,8 @@ const CreatorProfile = () => {
                 >
                   {tab === "manage" ? (
                     <span className="flex items-center gap-1"><Plus className="h-3 w-3" /> Manage</span>
+                  ) : tab === "edit" ? (
+                    <span className="flex items-center gap-1">✏️ Edit Profile</span>
                   ) : (
                     tab.charAt(0).toUpperCase() + tab.slice(1)
                   )}
@@ -356,7 +362,11 @@ const CreatorProfile = () => {
             </div>
           </div>
 
-          {activeTab === "manage" && isOwnProfile ? (
+          {activeTab === "edit" && isOwnProfile ? (
+            <div className="rounded-xl bg-gradient-card border border-border p-5">
+              <CreatorProfileEditor onSaved={() => { setActiveTab("all"); if (creator) { /* reload */ window.location.reload(); } }} />
+            </div>
+          ) : activeTab === "manage" && isOwnProfile ? (
             <CreatorContentManager posts={posts} onRefresh={() => creator && loadPosts(creator.user_id)} />
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">

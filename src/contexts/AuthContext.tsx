@@ -12,6 +12,8 @@ interface Profile {
   is_creator: boolean;
   date_of_birth: string | null;
   age_verified: boolean;
+  approval_status: string;
+  id_photo_url: string | null;
 }
 
 interface Wallet {
