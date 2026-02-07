@@ -208,38 +208,55 @@ serve(async (req) => {
     let textContent = "";
 
     if (isAtlasVideo) {
-      // Atlas Cloud generateVideo is ASYNC - returns a job ID to poll
-      const atlasJobId = aiData.id || aiData.data?.id;
-      const atlasStatus = aiData.status || aiData.data?.status || "processing";
+      // Atlas Cloud generateVideo - check if sync mode returned a result directly
+      const atlasData = aiData.data || aiData;
+      const atlasOutputs = atlasData.output || atlasData.outputs || [];
+      const directVideoUrl = Array.isArray(atlasOutputs) && atlasOutputs.length > 0 ? atlasOutputs[0] : null;
       
-      // Update generation record with atlas job ID for polling
+      if (directVideoUrl) {
+        // Sync mode succeeded - we have the video URL directly
+        // Deduct BREAD (skip for admin)
+        if (!isAdmin && wallet) {
+          await supabase.from("wallets").update({ balance: wallet.balance - cost }).eq("user_id", user.id);
+          await supabase.from("wallet_transactions").insert({
+            user_id: user.id, amount: -cost, type: "spend",
+            description: `AI ${type} generation`, reference_id: generation.id,
+          });
+        }
+        await supabase.from("ai_generations").update({
+          status: "completed", result_url: directVideoUrl,
+          metadata: { ...body, video_url: directVideoUrl },
+        }).eq("id", generation.id);
+
+        return new Response(JSON.stringify({
+          success: true, generation_id: generation.id, polling: false,
+          result: { images: [], video: { url: directVideoUrl }, text: "Video generated" },
+          new_balance: isAdmin ? wallet?.balance ?? 0 : (wallet?.balance ?? 0) - cost,
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // Async mode - need to poll
+      const atlasJobId = aiData.id || atlasData.id;
+      console.log("Atlas video job ID:", atlasJobId, "status:", atlasData.status);
+      
       await supabase.from("ai_generations").update({
         status: "processing",
-        metadata: { ...body, atlas_job_id: atlasJobId, atlas_status: atlasStatus },
+        metadata: { ...body, atlas_job_id: atlasJobId, atlas_status: atlasData.status || "processing" },
       }).eq("id", generation.id);
 
-      // Deduct BREAD immediately (skip for admin)
       if (!isAdmin && wallet) {
         await supabase.from("wallets").update({ balance: wallet.balance - cost }).eq("user_id", user.id);
         await supabase.from("wallet_transactions").insert({
-          user_id: user.id,
-          amount: -cost,
-          type: "spend",
-          description: `AI ${type} generation`,
-          reference_id: generation.id,
+          user_id: user.id, amount: -cost, type: "spend",
+          description: `AI ${type} generation`, reference_id: generation.id,
         });
       }
 
       return new Response(JSON.stringify({
-        success: true,
-        generation_id: generation.id,
-        atlas_job_id: atlasJobId,
-        polling: true,
-        result: { images: [], video: null, text: `Video generation started (${atlasStatus})` },
+        success: true, generation_id: generation.id, atlas_job_id: atlasJobId, polling: true,
+        result: { images: [], video: null, text: `Video generation started` },
         new_balance: isAdmin ? wallet?.balance ?? 0 : (wallet?.balance ?? 0) - cost,
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     } else if (isAtlasImage) {
       // Atlas Cloud generateImage returns { code, data: { outputs: [url, ...], status, ... } }
       const atlasData = aiData.data || aiData;
