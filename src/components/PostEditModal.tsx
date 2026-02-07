@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Loader2, Trash2, Save, Video, Image as ImageIcon, Lock, Unlock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import EmojiToolbar from "@/components/EmojiToolbar";
 
 interface CreatorPost {
   id: string;
@@ -130,6 +131,7 @@ const PostEditModal = ({ post, open, onClose, onRefresh }: PostEditModalProps) =
               className="bg-muted border-border mt-1"
               maxLength={100}
             />
+            <EmojiToolbar onSelect={(e) => setTitle((prev) => prev + e)} />
           </div>
 
           <div>
@@ -141,6 +143,7 @@ const PostEditModal = ({ post, open, onClose, onRefresh }: PostEditModalProps) =
               maxLength={500}
               className="w-full h-20 bg-muted border border-border rounded-lg p-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary mt-1"
             />
+            <EmojiToolbar onSelect={(e) => setDescription((prev) => prev + e)} />
           </div>
 
           {/* Visibility */}
