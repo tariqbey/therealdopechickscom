@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const ATLAS_API_URL = "https://api.atlascloud.ai/api/v1/chat/completions";
+const ATLAS_IMAGE_URL = "https://api.atlascloud.ai/api/v1/model/generateImage";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -98,23 +98,21 @@ serve(async (req) => {
       case "image": {
         const styleText = style ? ` in ${style} style` : "";
         const ratioText = aspectRatio ? ` with ${aspectRatio} aspect ratio` : "";
-        const fullPrompt = `Generate an image${styleText}${ratioText}: ${prompt}`;
+        const fullPrompt = `${prompt}${styleText}${ratioText}`;
 
         if (referenceImageUrl) {
           // Use Atlas Cloud qwen-image/edit-plus for image editing (I2I)
           isAtlasImage = true;
-          apiUrl = ATLAS_API_URL;
+          apiUrl = ATLAS_IMAGE_URL;
           apiKey = ATLAS_API_KEY;
 
           requestBody = {
-            model: "alibaba/qwen-image/edit-plus-20251215",
-            messages: [{
-              role: "user",
-              content: [
-                { type: "image_url", image_url: { url: referenceImageUrl } },
-                { type: "text", text: fullPrompt }
-              ]
-            }],
+            model: "atlascloud/qwen-image/edit-plus",
+            images: [referenceImageUrl],
+            prompt: fullPrompt,
+            enable_sync_mode: true,
+            enable_safety_checker: false,
+            output_format: "png",
           };
         } else {
           // No reference image: use Lovable AI for text-to-image
@@ -122,7 +120,7 @@ serve(async (req) => {
           apiKey = LOVABLE_API_KEY;
           requestBody = {
             model: "google/gemini-2.5-flash-image",
-            messages: [{ role: "user", content: fullPrompt }],
+            messages: [{ role: "user", content: `Generate an image: ${fullPrompt}` }],
             modalities: ["image", "text"],
           };
         }
@@ -199,35 +197,21 @@ serve(async (req) => {
     const aiData = await aiResponse.json();
     console.log("AI response keys:", JSON.stringify(Object.keys(aiData)));
 
-    // Parse results - Atlas Cloud returns OpenAI-compatible format
+    // Parse results
     const imageUrls: string[] = [];
     let textContent = "";
 
     if (isAtlasImage) {
-      // Atlas Cloud qwen-image returns base64 images in choices[].message.content[]
-      const choice = aiData.choices?.[0];
-      const content = choice?.message?.content;
-      if (Array.isArray(content)) {
-        for (let i = 0; i < content.length; i++) {
-          const part = content[i];
-          if (part.type === "image_url" && part.image_url?.url) {
-            const base64Data = part.image_url.url;
-            const base64Content = base64Data.replace(/^data:image\/\w+;base64,/, "");
-            const binaryData = Uint8Array.from(atob(base64Content), (c) => c.charCodeAt(0));
-            const fileName = `${user.id}/${generation.id}_${i}.png`;
-            const { error: uploadError } = await supabase.storage
-              .from("ai-studio")
-              .upload(fileName, binaryData, { contentType: "image/png", upsert: true });
-            if (!uploadError) {
-              const { data: urlData } = supabase.storage.from("ai-studio").getPublicUrl(fileName);
-              imageUrls.push(urlData.publicUrl);
-            }
-          } else if (part.type === "text") {
-            textContent += part.text;
-          }
+      // Atlas Cloud generateImage returns { code, data: { outputs: [url, ...], status, ... } }
+      const atlasData = aiData.data || aiData;
+      const outputs = atlasData.outputs || [];
+      for (const url of outputs) {
+        if (url && typeof url === "string") {
+          imageUrls.push(url);
         }
-      } else if (typeof content === "string") {
-        textContent = content;
+      }
+      if (imageUrls.length === 0) {
+        textContent = atlasData.status || aiData.message || "No images generated";
       }
     } else {
       // Lovable AI gateway format
