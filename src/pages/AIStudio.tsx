@@ -63,6 +63,8 @@ const AIStudioPage = () => {
   const [videoProgress, setVideoProgress] = useState(0);
   const [atlasJobId, setAtlasJobId] = useState<string | null>(null);
   const [showBuyModal, setShowBuyModal] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
+  const [libraryItems, setLibraryItems] = useState<{ id: string; result_url: string; generation_type: string; prompt: string | null; created_at: string }[]>([]);
 
   // Character state
   const [characterName, setCharacterName] = useState("");
@@ -96,6 +98,23 @@ const AIStudioPage = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Load library items when toggled
+  useEffect(() => {
+    if (!showLibrary || !user) return;
+    const loadLibrary = async () => {
+      const { data } = await supabase
+        .from("ai_generations")
+        .select("id, result_url, generation_type, prompt, created_at")
+        .eq("user_id", user.id)
+        .eq("status", "completed")
+        .not("result_url", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      setLibraryItems(data || []);
+    };
+    loadLibrary();
+  }, [showLibrary, user]);
 
   // Handle incoming state from generation history
   useEffect(() => {
@@ -377,10 +396,46 @@ const AIStudioPage = () => {
             <button onClick={() => navigate("/history")} className="w-full flex items-center gap-3 p-3 rounded-xl text-left text-muted-foreground hover:bg-muted transition-colors">
               <History className="h-5 w-5" /><span className="text-sm">Generation History</span>
             </button>
-            <button className="w-full flex items-center gap-3 p-3 rounded-xl text-left text-muted-foreground hover:bg-muted transition-colors">
+            <button onClick={() => setShowLibrary(!showLibrary)} className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors ${showLibrary ? "bg-primary/10 border border-primary/30 text-foreground" : "text-muted-foreground hover:bg-muted"}`}>
               <Layers className="h-5 w-5" /><span className="text-sm">Content Library</span>
             </button>
           </div>
+
+          {/* Content Library Panel */}
+          {showLibrary && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-xl bg-gradient-card border border-border p-5">
+              <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+                <Layers className="h-4 w-4 text-primary" /> Your Content Library
+              </h3>
+              {libraryItems.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-8">No generated content yet. Create images & videos above!</p>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto">
+                  {libraryItems.map((item) => {
+                    const isVideo = item.generation_type === "video";
+                    return (
+                      <div key={item.id} className="relative aspect-square rounded-lg overflow-hidden border border-border group cursor-pointer hover:border-primary/30 transition-colors">
+                        {isVideo ? (
+                          <video src={item.result_url} className="w-full h-full object-cover" muted />
+                        ) : (
+                          <img src={item.result_url} alt="" className="w-full h-full object-cover" />
+                        )}
+                        <div className="absolute inset-0 bg-background/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                          <span className="text-[10px] text-muted-foreground">{isVideo ? "Video" : "Image"}</span>
+                          {!isVideo && (
+                            <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => handleAnimateToVideo(item.result_url)}>
+                              Animate to Video
+                            </Button>
+                          )}
+                          <span className="text-[10px] text-muted-foreground truncate max-w-full px-2">{item.prompt?.slice(0, 40) || "No prompt"}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </motion.div>
+          )}
 
           {/* Main workspace */}
           <div className="space-y-6">
