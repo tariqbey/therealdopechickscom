@@ -184,6 +184,39 @@ export type Database = {
           },
         ]
       }
+      messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          is_ai_reply: boolean
+          read: boolean
+          receiver_id: string
+          sender_id: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          is_ai_reply?: boolean
+          read?: boolean
+          receiver_id: string
+          sender_id: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          is_ai_reply?: boolean
+          read?: boolean
+          receiver_id?: string
+          sender_id?: string
+        }
+        Relationships: []
+      }
       platform_settings: {
         Row: {
           key: string
@@ -205,6 +238,7 @@ export type Database = {
       profiles: {
         Row: {
           age_verified: boolean
+          approval_status: string
           avatar_url: string | null
           bio: string | null
           cover_url: string | null
@@ -212,12 +246,14 @@ export type Database = {
           date_of_birth: string | null
           display_name: string | null
           id: string
+          id_photo_url: string | null
           is_creator: boolean
           updated_at: string
           user_id: string
         }
         Insert: {
           age_verified?: boolean
+          approval_status?: string
           avatar_url?: string | null
           bio?: string | null
           cover_url?: string | null
@@ -225,12 +261,14 @@ export type Database = {
           date_of_birth?: string | null
           display_name?: string | null
           id?: string
+          id_photo_url?: string | null
           is_creator?: boolean
           updated_at?: string
           user_id: string
         }
         Update: {
           age_verified?: boolean
+          approval_status?: string
           avatar_url?: string | null
           bio?: string | null
           cover_url?: string | null
@@ -238,6 +276,7 @@ export type Database = {
           date_of_birth?: string | null
           display_name?: string | null
           id?: string
+          id_photo_url?: string | null
           is_creator?: boolean
           updated_at?: string
           user_id?: string
