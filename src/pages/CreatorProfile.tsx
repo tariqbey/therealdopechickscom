@@ -382,18 +382,24 @@ const CreatorProfile = () => {
                       }
                     }}
                   >
-                    {item.type === "video" ? (
-                      <video src={item.img} className={`w-full h-full object-cover ${item.locked ? "blur-lg scale-110" : ""} group-hover:scale-105 transition-transform duration-300`} muted />
+                    {item.locked ? (
+                      <>
+                        <div className="w-full h-full bg-gradient-to-br from-muted via-muted/80 to-muted/60" />
+                        <div className="absolute inset-0 backdrop-blur-xl bg-background/30" />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <Lock className="h-8 w-8 text-accent mb-2 drop-shadow-lg" />
+                          <span className="text-xs font-bold text-accent drop-shadow">Subscribe to unlock</span>
+                          {item.type === "video" && (
+                            <span className="mt-1 px-2 py-0.5 rounded-full bg-primary/80 text-primary-foreground text-[10px] font-bold">VIDEO</span>
+                          )}
+                        </div>
+                      </>
+                    ) : item.type === "video" ? (
+                      <video src={item.img} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" muted />
                     ) : (
-                      <img src={item.img} alt="" className={`w-full h-full object-cover ${item.locked ? "blur-lg scale-110" : ""} group-hover:scale-105 transition-transform duration-300`} />
+                      <img src={item.img} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    {item.locked && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <Lock className="h-8 w-8 text-accent mb-2" />
-                        <span className="text-xs font-bold text-accent">Subscribe to unlock</span>
-                      </div>
-                    )}
+                    {!item.locked && <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />}
                     {item.type === "video" && !item.locked && (
                       <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-primary/80 text-primary-foreground text-[10px] font-bold">VIDEO</div>
                     )}
