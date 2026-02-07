@@ -7,6 +7,7 @@ interface Profile {
   user_id: string;
   display_name: string | null;
   avatar_url: string | null;
+  cover_url: string | null;
   bio: string | null;
   is_creator: boolean;
   date_of_birth: string | null;

@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { User, Camera, Save, ArrowLeft, Crown, ExternalLink } from "lucide-react";
+import { User, Camera, Save, ArrowLeft, Crown, ExternalLink, Sparkles, ImageIcon, Loader2 } from "lucide-react";
 import { PushNotificationSettings } from "@/components/PushNotificationSettings";
 
 const ProfileSettings = () => {
@@ -17,13 +17,17 @@ const ProfileSettings = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const [displayName, setDisplayName] = useState(profile?.display_name || "");
   const [bio, setBio] = useState(profile?.bio || "");
   const [isCreator, setIsCreator] = useState(profile?.is_creator || false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [generatingBio, setGeneratingBio] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || "");
+  const [coverUrl, setCoverUrl] = useState((profile as any)?.cover_url || "");
 
   if (!user) {
     navigate("/auth");
@@ -55,6 +59,49 @@ const ProfileSettings = () => {
     setUploading(false);
   };
 
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Max 10MB for cover images", variant: "destructive" });
+      return;
+    }
+
+    setUploadingCover(true);
+    const ext = file.name.split(".").pop();
+    const path = `${user.id}/cover.${ext}`;
+
+    const { error: uploadError } = await supabase.storage.from("covers").upload(path, file, { upsert: true });
+
+    if (uploadError) {
+      toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
+    } else {
+      const { data: { publicUrl } } = supabase.storage.from("covers").getPublicUrl(path);
+      setCoverUrl(publicUrl);
+      toast({ title: "Cover image uploaded!" });
+    }
+    setUploadingCover(false);
+  };
+
+  const handleGenerateBio = async () => {
+    setGeneratingBio(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-bio", {
+        body: { displayName, currentBio: bio, isCreator },
+      });
+      if (error) throw error;
+      if (data?.bio) {
+        setBio(data.bio);
+        toast({ title: "Bio generated!", description: "Review and edit if needed before saving." });
+      }
+    } catch (err: any) {
+      toast({ title: "AI generation failed", description: err.message || "Try again later", variant: "destructive" });
+    } finally {
+      setGeneratingBio(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!displayName.trim()) {
       toast({ title: "Display name required", variant: "destructive" });
@@ -77,7 +124,8 @@ const ProfileSettings = () => {
         bio: bio.trim(),
         is_creator: isCreator,
         avatar_url: avatarUrl || null,
-      })
+        cover_url: coverUrl || null,
+      } as any)
       .eq("user_id", user.id);
 
     if (error) {
@@ -101,6 +149,36 @@ const ProfileSettings = () => {
           <h1 className="text-3xl font-black mb-6">Profile Settings</h1>
 
           <div className="rounded-xl bg-gradient-card border border-border p-6 space-y-6">
+            {/* Cover / Banner Image */}
+            <div>
+              <Label className="text-xs font-bold text-muted-foreground mb-2 block">Cover / Banner Image</Label>
+              <div
+                onClick={() => coverInputRef.current?.click()}
+                className="relative w-full h-36 md:h-48 rounded-xl border-2 border-dashed border-border bg-muted overflow-hidden cursor-pointer hover:border-primary/30 transition-colors group"
+              >
+                {coverUrl ? (
+                  <>
+                    <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <span className="text-sm font-medium text-foreground">Change Cover</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                    <ImageIcon className="h-8 w-8 mb-2" />
+                    <span className="text-sm">Click to upload a banner image</span>
+                    <span className="text-xs mt-1">Recommended: 1500 × 500px • Max 10MB</span>
+                  </div>
+                )}
+                {uploadingCover && (
+                  <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                )}
+              </div>
+              <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
+            </div>
+
             {/* Avatar */}
             <div className="flex items-center gap-4">
               <div
@@ -131,13 +209,28 @@ const ProfileSettings = () => {
 
             {/* Bio */}
             <div>
-              <Label className="text-xs font-bold text-muted-foreground">Bio</Label>
+              <div className="flex items-center justify-between mb-1">
+                <Label className="text-xs font-bold text-muted-foreground">Bio</Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleGenerateBio}
+                  disabled={generatingBio}
+                  className="text-xs text-primary hover:text-primary/80 h-7 px-2"
+                >
+                  {generatingBio ? (
+                    <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Generating...</>
+                  ) : (
+                    <><Sparkles className="h-3 w-3 mr-1" /> AI Assist</>
+                  )}
+                </Button>
+              </div>
               <textarea
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 maxLength={500}
                 placeholder="Tell the world about yourself..."
-                className="w-full h-24 bg-muted border border-border rounded-lg p-3 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary mt-1"
+                className="w-full h-24 bg-muted border border-border rounded-lg p-3 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <p className="text-xs text-muted-foreground mt-1">{bio.length}/500</p>
             </div>
