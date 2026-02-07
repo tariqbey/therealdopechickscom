@@ -262,7 +262,7 @@ const AIStudioPage = () => {
       } else if (activeTab === "character") {
         body = { ...body, characterName, characterStyle, characterDescription: characterDesc };
       } else {
-        body = { ...body, sourceImageUrl, motionPreset, duration: videoDuration, quality: videoQuality, motionDescription };
+        body = { ...body, sourceImageUrl, motionPreset, duration: videoDuration, quality: videoQuality, motionDescription, aspectRatio: selectedRatio };
       }
 
       const { data, error } = await supabase.functions.invoke("generate-ai", { body });
@@ -577,6 +577,16 @@ const AIStudioPage = () => {
                       <select value={videoQuality} onChange={(e) => setVideoQuality(e.target.value)} className="w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
                         <option>Standard</option><option>HD</option><option>4K</option>
                       </select>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <label className="text-xs font-bold text-muted-foreground mb-2 block">Aspect Ratio</label>
+                    <div className="flex gap-2">
+                      {aspectRatios.map((r) => (
+                        <button key={r} onClick={() => setSelectedRatio(r)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${selectedRatio === r ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary/30"}`}>
+                          {r}
+                        </button>
+                      ))}
                     </div>
                   </div>
                   <div className="mt-4">
