@@ -35,6 +35,23 @@ export const useWallet = () => {
     }
   };
 
+  const verifySession = async (sessionId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("verify-session", {
+        body: { sessionId },
+      });
+      if (error) throw error;
+      if (data?.credited) {
+        await refreshWallet();
+        if (!data.already_processed) {
+          toast({ title: "BREAD credited! 🍞", description: "Your BREAD balance has been updated." });
+        }
+      }
+    } catch (err: any) {
+      console.error("BREAD verify error:", err);
+    }
+  };
+
   const spendBread = async (amount: number, description: string): Promise<boolean> => {
     if (!wallet || wallet.balance < amount) {
       toast({ title: "Insufficient BREAD", description: `You need ${amount} BREAD but have ${wallet?.balance ?? 0}.`, variant: "destructive" });
@@ -59,6 +76,7 @@ export const useWallet = () => {
     balance: wallet?.balance ?? 0,
     purchaseBread,
     spendBread,
+    verifySession,
     refreshWallet,
   };
 };

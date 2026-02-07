@@ -36,7 +36,7 @@ verify_jwt = false
 [functions.poll-generation]
 verify_jwt = false
 
-[functions.stripe-webhook]
+[functions.verify-session]
 verify_jwt = false
 
 [functions.create-credits-checkout]
