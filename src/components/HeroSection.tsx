@@ -1,10 +1,13 @@
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Play, Sparkles } from "lucide-react";
 import dopeVideo from "@/assets/dope.mp4";
 import logo from "@/assets/logo.png";
 
 const HeroSection = () => {
+  const navigate = useNavigate();
+
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
       {/* Background video with overlay */}
@@ -65,6 +68,7 @@ const HeroSection = () => {
           >
             <Button
               size="lg"
+              onClick={() => navigate("/auth")}
               className="bg-gradient-purple text-primary-foreground font-bold text-base px-8 glow-purple hover:opacity-90 transition-opacity"
             >
               Start Creating

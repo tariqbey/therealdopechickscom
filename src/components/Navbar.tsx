@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Menu, X, Search, LogOut, Coins, Settings } from "lucide-react";
+import { Menu, X, Search, LogOut, Coins, Settings, UserCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,7 +10,6 @@ const navLinks = [
   { label: "Explore", href: "/#explore" },
   { label: "Creators", href: "/#creators" },
   { label: "AI Studio", href: "/ai-studio" },
-  { label: "Player", href: "/player" },
   { label: "Get BREAD", href: "/#bread" },
 ];
 
@@ -52,6 +51,16 @@ const Navbar = () => {
                 <span className="text-xs font-bold text-gradient-gold">{wallet?.balance ?? 0}</span>
               </div>
               <span className="text-sm text-muted-foreground">{profile?.display_name || user.email}</span>
+              {profile?.is_creator && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate(`/creator/${(profile.display_name || "").toLowerCase().replace(/\s+/g, "")}`)}
+                  className="text-muted-foreground hover:text-foreground text-xs"
+                >
+                  <UserCircle className="h-4 w-4 mr-1" /> My Profile
+                </Button>
+              )}
               <Button variant="ghost" size="icon" onClick={() => navigate("/settings")} className="text-muted-foreground hover:text-foreground">
                 <Settings className="h-4 w-4" />
               </Button>
