@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Video, Download, Save, Loader2, Check, X, ZoomIn } from "lucide-react";
+import { Video, Download, Save, Loader2, Check, X, ZoomIn, Crop } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import MediaEditor from "@/components/editor/MediaEditor";
 
 interface GeneratedResultCardProps {
   url: string;
@@ -15,6 +16,7 @@ const GeneratedResultCard = ({ url, index, onAnimateToVideo, onSaveToLibrary }: 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
   const { toast } = useToast();
 
   const handleSave = async () => {
@@ -57,13 +59,23 @@ const GeneratedResultCard = ({ url, index, onAnimateToVideo, onSaveToLibrary }: 
         </div>
 
         <div className="p-3 space-y-2">
-          <Button
-            size="sm"
-            onClick={() => onAnimateToVideo(url)}
-            className="w-full bg-gradient-purple text-primary-foreground font-bold hover:opacity-90 h-8 text-xs"
-          >
-            <Video className="h-3 w-3 mr-1" /> Animate to Video
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={() => onAnimateToVideo(url)}
+              className="flex-1 bg-gradient-purple text-primary-foreground font-bold hover:opacity-90 h-8 text-xs"
+            >
+              <Video className="h-3 w-3 mr-1" /> Animate
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setEditorOpen(true)}
+              className="flex-1 h-8 text-xs"
+            >
+              <Crop className="h-3 w-3 mr-1" /> Edit
+            </Button>
+          </div>
           <div className="flex gap-2">
             <Button
               size="sm"
@@ -120,6 +132,14 @@ const GeneratedResultCard = ({ url, index, onAnimateToVideo, onSaveToLibrary }: 
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Media Editor */}
+      <MediaEditor
+        mediaUrl={url}
+        mediaType="image"
+        open={editorOpen}
+        onClose={() => setEditorOpen(false)}
+      />
     </>
   );
 };

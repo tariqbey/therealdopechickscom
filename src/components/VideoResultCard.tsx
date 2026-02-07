@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Video, Save, RefreshCw, Download, Loader2, Check, Play, X } from "lucide-react";
+import { Video, Save, RefreshCw, Download, Loader2, Check, Play, X, Scissors } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import MediaEditor from "@/components/editor/MediaEditor";
 
 interface VideoResultCardProps {
   videoUrl: string;
@@ -14,6 +15,7 @@ const VideoResultCard = ({ videoUrl, onSaveToLibrary, onRerun }: VideoResultCard
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
   const { toast } = useToast();
 
   const handleSave = async () => {
@@ -91,6 +93,14 @@ const VideoResultCard = ({ videoUrl, onSaveToLibrary, onRerun }: VideoResultCard
           <Button
             size="sm"
             variant="outline"
+            onClick={() => setEditorOpen(true)}
+            className="w-full h-9 text-xs"
+          >
+            <Scissors className="h-3 w-3 mr-1" /> Edit / Trim
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
             onClick={onRerun}
             className="w-full h-9 text-xs"
           >
@@ -128,6 +138,14 @@ const VideoResultCard = ({ videoUrl, onSaveToLibrary, onRerun }: VideoResultCard
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Media Editor */}
+      <MediaEditor
+        mediaUrl={videoUrl}
+        mediaType="video"
+        open={editorOpen}
+        onClose={() => setEditorOpen(false)}
+      />
     </>
   );
 };
