@@ -112,9 +112,9 @@ const PostEditModal = ({ post, open, onClose, onRefresh }: PostEditModalProps) =
         </DialogHeader>
 
         {/* Preview */}
-        <div className="rounded-xl overflow-hidden border border-border bg-muted aspect-video">
+        <div className="rounded-xl overflow-hidden border border-border bg-muted aspect-video isolate relative z-0">
           {post.media_type === "video" ? (
-            <video src={post.media_url} className="w-full h-full object-contain" controls />
+            <video src={post.media_url} className="w-full h-full object-contain relative z-0" controls />
           ) : (
             <img src={post.media_url} alt={post.title || ""} className="w-full h-full object-contain" />
           )}
