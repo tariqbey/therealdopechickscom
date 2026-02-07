@@ -31,7 +31,13 @@ import VideoResultCard from "@/components/VideoResultCard";
 type StudioTab = "image" | "character" | "video";
 
 const stylePresets = ["Glamour", "Artistic", "Realistic", "Fantasy", "Cinematic", "Noir", "Pop Art", "Ethereal"];
-const aspectRatios = ["1:1", "4:5", "9:16", "16:9"];
+const videoAspectRatios = [
+  { value: "9:16", label: "9:16", desc: "TikTok / Reels / Shorts" },
+  { value: "16:9", label: "16:9", desc: "YouTube / Landscape" },
+  { value: "1:1", label: "1:1", desc: "Square" },
+  { value: "4:5", label: "4:5", desc: "Instagram Feed" },
+];
+const imageAspectRatios = ["1:1", "4:5", "9:16", "16:9"];
 
 // Cost structure: API cost (cents) + $0.15 surcharge = total cost in cents → converted to BREAD
 // 1 BREAD ≈ $0.01 (500 BREAD = $4.99)
@@ -49,7 +55,7 @@ const AIStudioPage = () => {
   const [activeTab, setActiveTab] = useState<StudioTab>("image");
   const [prompt, setPrompt] = useState("");
   const [selectedStyle, setSelectedStyle] = useState("Glamour");
-  const [selectedRatio, setSelectedRatio] = useState("1:1");
+  const [selectedRatio, setSelectedRatio] = useState("9:16");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedResults, setGeneratedResults] = useState<string[]>([]);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
@@ -440,7 +446,7 @@ const AIStudioPage = () => {
                   <div className="mt-4">
                     <label className="text-xs font-bold text-muted-foreground mb-2 block">Aspect Ratio</label>
                     <div className="flex gap-2">
-                      {aspectRatios.map((r) => (
+                      {imageAspectRatios.map((r) => (
                         <button key={r} onClick={() => setSelectedRatio(r)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${selectedRatio === r ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary/30"}`}>
                           {r}
                         </button>
@@ -581,10 +587,10 @@ const AIStudioPage = () => {
                   </div>
                   <div className="mt-4">
                     <label className="text-xs font-bold text-muted-foreground mb-2 block">Aspect Ratio</label>
-                    <div className="flex gap-2">
-                      {aspectRatios.map((r) => (
-                        <button key={r} onClick={() => setSelectedRatio(r)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${selectedRatio === r ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary/30"}`}>
-                          {r}
+                    <div className="flex flex-wrap gap-2">
+                      {videoAspectRatios.map((r) => (
+                        <button key={r.value} onClick={() => setSelectedRatio(r.value)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${selectedRatio === r.value ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary/30"}`}>
+                          {r.label} <span className="text-[10px] opacity-60 ml-1">{r.desc}</span>
                         </button>
                       ))}
                     </div>
