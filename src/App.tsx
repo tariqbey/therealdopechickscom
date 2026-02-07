@@ -13,6 +13,7 @@ import GenerationHistory from "./pages/GenerationHistory";
 import VideoPlayerPage from "./pages/VideoPlayerPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import Install from "./pages/Install";
+import AvatarBuilder from "./pages/AvatarBuilder";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/player" element={<VideoPlayerPage />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/install" element={<Install />} />
+            <Route path="/avatar-builder" element={<AvatarBuilder />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
