@@ -28,7 +28,7 @@ const Navbar = () => {
     >
       <div className="container mx-auto flex items-center justify-between h-20 px-4">
         <a href="/" className="flex items-center gap-2">
-          <img src={logo} alt="Dope Chicks" className="h-16 w-auto mix-blend-screen drop-shadow-[0_0_15px_hsl(42,80%,55%,0.3)]" />
+          <img src={logo} alt="Dope Chicks" className="h-20 w-20 object-contain mix-blend-screen drop-shadow-[0_0_15px_hsl(42,80%,55%,0.3)]" />
         </a>
 
         {/* Desktop Nav */}
