@@ -167,13 +167,24 @@ const AIStudioPage = () => {
       if (data?.error) {
         toast({ title: "Generation failed", description: data.error, variant: "destructive" });
       } else {
-        toast({ title: "Generation complete!", description: isAdmin ? "No BREAD charged (Admin)" : `Cost: ${costs[activeTab]} BREAD` });
-        if (data?.result?.images) {
-          setGeneratedResults(data.result.images.map((img: any) => img.url));
-        } else if (data?.result?.video?.url) {
-          setGeneratedResults([data.result.video.url]);
-        } else if (data?.result?.character?.thumbnail_url) {
-          setGeneratedResults([data.result.character.thumbnail_url]);
+        const images = data?.result?.images?.map((img: any) => img.url).filter(Boolean) || [];
+        const videoUrl = data?.result?.video?.url;
+        const charUrl = data?.result?.character?.thumbnail_url;
+        const aiText = data?.result?.text;
+
+        if (images.length > 0) {
+          setGeneratedResults(images);
+          toast({ title: "Generation complete!", description: isAdmin ? "No BREAD charged (Admin)" : `Cost: ${costs[activeTab]} BREAD` });
+        } else if (videoUrl) {
+          setGeneratedResults([videoUrl]);
+          toast({ title: "Generation complete!", description: isAdmin ? "No BREAD charged (Admin)" : `Cost: ${costs[activeTab]} BREAD` });
+        } else if (charUrl) {
+          setGeneratedResults([charUrl]);
+          toast({ title: "Generation complete!", description: isAdmin ? "No BREAD charged (Admin)" : `Cost: ${costs[activeTab]} BREAD` });
+        } else if (aiText) {
+          toast({ title: "Generation declined", description: aiText, variant: "destructive" });
+        } else {
+          toast({ title: "No results", description: "The AI didn't return any images. Try a different prompt.", variant: "destructive" });
         }
       }
     } catch (err: any) {
