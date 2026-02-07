@@ -23,14 +23,17 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Sparkles, Image as ImageIcon, Video, Wand2, User,
-  Coins, History, Upload, Layers, X, ShieldAlert,
+  Coins, History, Upload, Layers, X, ShieldAlert, Film,
 } from "lucide-react";
 import GenerationProgress from "@/components/GenerationProgress";
 import GeneratedResultCard from "@/components/GeneratedResultCard";
 import VideoResultCard from "@/components/VideoResultCard";
 import ContentLibrary from "@/components/ContentLibrary";
+import MediaEditor from "@/components/editor/MediaEditor";
 
 type StudioTab = "image" | "character" | "video";
+
+// Timeline editor state is separate from generation tabs
 
 const stylePresets = ["Glamour", "Artistic", "Realistic", "Fantasy", "Cinematic", "Noir", "Pop Art", "Ethereal"];
 const videoAspectRatios = [
@@ -66,6 +69,7 @@ const AIStudioPage = () => {
   const [atlasJobId, setAtlasJobId] = useState<string | null>(null);
   const [showBuyModal, setShowBuyModal] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
+  const [showTimelineEditor, setShowTimelineEditor] = useState(false);
   
 
   // Character state
@@ -401,6 +405,9 @@ const AIStudioPage = () => {
             <button onClick={() => setShowLibrary(!showLibrary)} className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors ${showLibrary ? "bg-primary/10 border border-primary/30 text-foreground" : "text-muted-foreground hover:bg-muted"}`}>
               <Layers className="h-5 w-5" /><span className="text-sm">Content Library</span>
             </button>
+            <button onClick={() => setShowTimelineEditor(true)} className="w-full flex items-center gap-3 p-3 rounded-xl text-left text-muted-foreground hover:bg-muted transition-colors">
+              <Film className="h-5 w-5" /><span className="text-sm">Timeline Editor</span>
+            </button>
           </div>
 
           {/* Content Library Panel */}
@@ -694,6 +701,16 @@ const AIStudioPage = () => {
 
       <Footer />
       <BuyCreditsModal open={showBuyModal} onClose={() => setShowBuyModal(false)} />
+
+      {/* Timeline Editor - opens as fullscreen overlay */}
+      {showTimelineEditor && (
+        <MediaEditor
+          mediaUrl=""
+          mediaType="video"
+          open={showTimelineEditor}
+          onClose={() => setShowTimelineEditor(false)}
+        />
+      )}
 
       {/* Image Upload Disclaimer Dialog */}
       <AlertDialog open={showDisclaimer} onOpenChange={setShowDisclaimer}>

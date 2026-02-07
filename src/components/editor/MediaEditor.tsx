@@ -24,14 +24,17 @@ interface MediaEditorProps {
 const MediaEditor = ({ mediaUrl, mediaType, open, onClose, onSaved }: MediaEditorProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<EditorTab>(mediaType === "image" ? "crop" : "trim");
+  const hasMedia = !!mediaUrl;
+  const [activeTab, setActiveTab] = useState<EditorTab>(
+    !hasMedia ? "timeline" : mediaType === "image" ? "crop" : "trim"
+  );
   const [editedBlob, setEditedBlob] = useState<Blob | null>(null);
   const [editedPreview, setEditedPreview] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
 
   const tabs: { id: EditorTab; label: string; icon: React.ElementType; show: boolean }[] = [
-    { id: "crop", label: "Crop & Resize", icon: Crop, show: mediaType === "image" },
-    { id: "trim", label: "Trim", icon: Scissors, show: mediaType === "video" },
+    { id: "crop", label: "Crop & Resize", icon: Crop, show: hasMedia && mediaType === "image" },
+    { id: "trim", label: "Trim", icon: Scissors, show: hasMedia && mediaType === "video" },
     { id: "timeline", label: "Timeline", icon: Film, show: true },
   ];
 
@@ -130,15 +133,15 @@ const MediaEditor = ({ mediaUrl, mediaType, open, onClose, onSaved }: MediaEdito
 
         {/* Editor content */}
         <div className="flex-1 overflow-y-auto p-4 max-w-2xl mx-auto w-full">
-          {activeTab === "crop" && mediaType === "image" && (
+          {activeTab === "crop" && hasMedia && mediaType === "image" && (
             <ImageEditor imageUrl={mediaUrl} onSave={handleEdited} />
           )}
-          {activeTab === "trim" && mediaType === "video" && (
+          {activeTab === "trim" && hasMedia && mediaType === "video" && (
             <VideoTrimmer videoUrl={mediaUrl} onTrimmed={handleEdited} />
           )}
           {activeTab === "timeline" && (
             <ClipTimeline
-              initialClip={{ url: mediaUrl, type: mediaType }}
+              initialClip={hasMedia ? { url: mediaUrl, type: mediaType } : undefined}
               onRender={handleEdited}
             />
           )}
