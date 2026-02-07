@@ -9,6 +9,7 @@ import CreatorProfile from "./pages/CreatorProfile";
 import AIStudio from "./pages/AIStudio";
 import Auth from "./pages/Auth";
 import ProfileSettings from "./pages/ProfileSettings";
+import Settings from "./pages/Settings";
 import GenerationHistory from "./pages/GenerationHistory";
 import VideoPlayerPage from "./pages/VideoPlayerPage";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -34,7 +35,8 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/creator/:handle" element={<CreatorProfile />} />
             <Route path="/ai-studio" element={<AIStudio />} />
-            <Route path="/settings" element={<ProfileSettings />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/settings/profile" element={<ProfileSettings />} />
             <Route path="/settings/tiers" element={<CreatorTiers />} />
             <Route path="/history" element={<GenerationHistory />} />
             <Route path="/player" element={<VideoPlayerPage />} />
