@@ -40,7 +40,7 @@ serve(async (req) => {
       mode: "payment",
       success_url: `${req.headers.get("origin")}/ai-studio?purchase=success`,
       cancel_url: `${req.headers.get("origin")}/ai-studio?purchase=canceled`,
-      metadata: { user_id: user.id, price_id: priceId },
+      metadata: { user_id: user.id, price_id: priceId, currency_type: "bread" },
     });
 
     return new Response(JSON.stringify({ url: session.url }), {
