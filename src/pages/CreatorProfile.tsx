@@ -6,11 +6,12 @@ import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import {
   Heart, Lock, Star, Crown, MessageCircle, Share2,
-  Image as ImageIcon, Video, Calendar, Users, Eye, Loader2, CheckCircle2,
+  Image as ImageIcon, Video, Calendar, Users, Loader2, CheckCircle2, Plus,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import CreatorContentManager from "@/components/CreatorContentManager";
 
 interface CreatorData {
   user_id: string;
@@ -30,6 +31,19 @@ interface TierData {
   is_active: boolean;
 }
 
+interface CreatorPost {
+  id: string;
+  creator_id: string;
+  title: string | null;
+  description: string | null;
+  media_url: string;
+  media_type: string;
+  is_locked: boolean;
+  min_tier: string | null;
+  likes_count: number;
+  created_at: string;
+}
+
 const tierColors: Record<string, string> = {
   Bronze: "from-amber-700 to-amber-900",
   Silver: "from-gray-400 to-gray-600",
@@ -42,33 +56,35 @@ const tierFeatures: Record<string, string[]> = {
   Gold: ["Everything in Silver", "Custom content requests", "1-on-1 video calls", "Early access to new drops", "Exclusive merch discounts"],
 };
 
-const contentGrid = [
-  { id: 1, type: "photo", locked: false, img: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=400&fit=crop", likes: 342 },
-  { id: 2, type: "photo", locked: true, img: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=400&fit=crop", likes: 891 },
-  { id: 3, type: "video", locked: true, img: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=400&fit=crop", likes: 1203 },
-  { id: 4, type: "photo", locked: false, img: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop", likes: 567 },
-  { id: 5, type: "photo", locked: true, img: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=400&h=400&fit=crop", likes: 2100 },
-  { id: 6, type: "video", locked: true, img: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=400&h=400&fit=crop", likes: 1540 },
+const dummyContent = [
+  { id: "d1", type: "photo", locked: false, img: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=400&fit=crop", likes: 342 },
+  { id: "d2", type: "photo", locked: true, img: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=400&fit=crop", likes: 891 },
+  { id: "d3", type: "video", locked: true, img: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=400&fit=crop", likes: 1203 },
+  { id: "d4", type: "photo", locked: false, img: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop", likes: 567 },
+  { id: "d5", type: "photo", locked: true, img: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=400&h=400&fit=crop", likes: 2100 },
+  { id: "d6", type: "video", locked: true, img: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=400&h=400&fit=crop", likes: 1540 },
 ];
 
 const CreatorProfile = () => {
   const { handle } = useParams<{ handle: string }>();
-  const [activeTab, setActiveTab] = useState<"all" | "photos" | "videos">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "photos" | "videos" | "manage">("all");
   const [subscribingTier, setSubscribingTier] = useState<string | null>(null);
   const [activeSubscription, setActiveSubscription] = useState<{ tier: string; subscriptionEnd: string } | null>(null);
   const [checkingSubscription, setCheckingSubscription] = useState(false);
   const [creator, setCreator] = useState<CreatorData | null>(null);
   const [tiers, setTiers] = useState<TierData[]>([]);
+  const [posts, setPosts] = useState<CreatorPost[]>([]);
+  const [showDummy, setShowDummy] = useState(true);
   const [loadingCreator, setLoadingCreator] = useState(true);
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Load creator profile from DB
+  const isOwnProfile = user && creator && user.id === creator.user_id;
+
   useEffect(() => {
     const loadCreator = async () => {
       setLoadingCreator(true);
-      // Try to find creator by display_name (used as handle)
       const { data: profiles, error } = await supabase
         .from("profiles")
         .select("*")
@@ -80,21 +96,32 @@ const CreatorProfile = () => {
         return;
       }
 
-      // Match by handle (lowercase display_name without spaces, or user_id)
       const found = profiles?.find((p) => {
         const slug = (p.display_name || "").toLowerCase().replace(/\s+/g, "");
         return slug === handle || p.user_id === handle;
       });
 
       if (found) {
-        setCreator(found as CreatorData);
+        setCreator(found as unknown as CreatorData);
         loadTiers(found.user_id);
+        loadPosts(found.user_id);
         if (user) checkSubscription(found.user_id);
       }
       setLoadingCreator(false);
     };
 
+    // Load dummy content setting
+    const loadSettings = async () => {
+      const { data } = await supabase
+        .from("platform_settings" as any)
+        .select("*")
+        .eq("key", "show_dummy_content")
+        .maybeSingle();
+      if (data) setShowDummy((data as any).value?.enabled ?? true);
+    };
+
     loadCreator();
+    loadSettings();
   }, [handle, user]);
 
   const loadTiers = async (creatorUserId: string) => {
@@ -104,10 +131,16 @@ const CreatorProfile = () => {
       .eq("creator_id", creatorUserId)
       .eq("is_active", true)
       .order("price_cents", { ascending: true });
+    if (data && data.length > 0) setTiers(data as TierData[]);
+  };
 
-    if (data && data.length > 0) {
-      setTiers(data as TierData[]);
-    }
+  const loadPosts = async (creatorUserId: string) => {
+    const { data } = await supabase
+      .from("creator_posts" as any)
+      .select("*")
+      .eq("creator_id", creatorUserId)
+      .order("created_at", { ascending: false });
+    setPosts((data as unknown as CreatorPost[]) || []);
   };
 
   const checkSubscription = async (creatorUserId: string) => {
@@ -128,7 +161,6 @@ const CreatorProfile = () => {
 
   const handleSubscribe = async (tier: TierData) => {
     if (!user) { navigate("/auth"); return; }
-
     setSubscribingTier(tier.id);
     try {
       const { data, error } = await supabase.functions.invoke("create-creator-checkout", {
@@ -153,17 +185,30 @@ const CreatorProfile = () => {
     }
   };
 
-  const filtered = contentGrid.filter((c) =>
-    activeTab === "all" ? true : activeTab === "photos" ? c.type === "photo" : c.type === "video"
+  // Build content grid from real posts + optional dummy
+  const contentItems = posts.map((p) => ({
+    id: p.id,
+    type: p.media_type as "photo" | "video",
+    locked: p.is_locked,
+    img: p.media_url,
+    likes: p.likes_count,
+    isReal: true,
+  }));
+
+  const allContent = showDummy && contentItems.length < 3
+    ? [...contentItems, ...dummyContent.map((d) => ({ ...d, isReal: false }))]
+    : contentItems;
+
+  const filtered = allContent.filter((c) =>
+    activeTab === "all" || activeTab === "manage" ? true : activeTab === "photos" ? c.type === "photo" : c.type === "video"
   );
 
   const displayName = creator?.display_name || "Creator";
   const avatarUrl = creator?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=400&fit=crop&crop=face";
   const coverUrl = creator?.cover_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1400&h=400&fit=crop&crop=top";
-  const bio = creator?.bio || "Content creator on Dope Chicks ✨";
+  const bio = creator?.bio || "Content creator ✨";
   const joinedDate = creator ? new Date(creator.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "";
 
-  // Use real tiers if available, otherwise show defaults for demo
   const displayTiers = tiers.length > 0 ? tiers : [
     { id: "demo-bronze", tier_name: "Bronze", price_cents: 499, description: null, is_active: true },
     { id: "demo-silver", tier_name: "Silver", price_cents: 999, description: null, is_active: true },
@@ -203,7 +248,7 @@ const CreatorProfile = () => {
             <p className="text-sm text-secondary-foreground max-w-lg">{bio}</p>
             <div className="flex flex-wrap gap-4 mt-3 text-xs text-muted-foreground">
               {joinedDate && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Joined {joinedDate}</span>}
-              <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {tiers.length > 0 ? "Active" : "New"} creator</span>
+              <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {posts.length} posts</span>
             </div>
           </div>
           <div className="flex gap-2 shrink-0">
@@ -288,44 +333,65 @@ const CreatorProfile = () => {
           </div>
         </motion.div>
 
-        {/* Content Grid */}
+        {/* Content Section */}
         <div className="mb-12">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-black">Content</h2>
             <div className="flex gap-1">
-              {(["all", "photos", "videos"] as const).map((tab) => (
+              {(["all", "photos", "videos", ...(isOwnProfile ? ["manage" as const] : [])] as const).map((tab) => (
                 <button
                   key={tab}
-                  onClick={() => setActiveTab(tab)}
+                  onClick={() => setActiveTab(tab as any)}
                   className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
                     activeTab === tab ? "bg-gradient-purple text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  {tab === "manage" ? (
+                    <span className="flex items-center gap-1"><Plus className="h-3 w-3" /> Manage</span>
+                  ) : (
+                    tab.charAt(0).toUpperCase() + tab.slice(1)
+                  )}
                 </button>
               ))}
             </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {filtered.map((item) => (
-              <motion.div key={item.id} whileHover={{ scale: 1.02 }} className="relative aspect-square rounded-xl overflow-hidden cursor-pointer group">
-                <img src={item.img} alt="" className={`w-full h-full object-cover ${item.locked ? "blur-lg scale-110" : ""} group-hover:scale-105 transition-transform duration-300`} />
-                <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                {item.locked && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <Lock className="h-8 w-8 text-accent mb-2" />
-                    <span className="text-xs font-bold text-accent">Subscribe to unlock</span>
-                  </div>
-                )}
-                {item.type === "video" && !item.locked && (
-                  <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-primary/80 text-primary-foreground text-[10px] font-bold">VIDEO</div>
-                )}
-                <div className="absolute bottom-2 left-2 flex items-center gap-1 text-xs text-foreground/80">
-                  <Heart className="h-3 w-3" /> {item.likes.toLocaleString()}
+
+          {activeTab === "manage" && isOwnProfile ? (
+            <CreatorContentManager posts={posts} onRefresh={() => creator && loadPosts(creator.user_id)} />
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {filtered.length === 0 ? (
+                <div className="col-span-full flex flex-col items-center justify-center py-16 text-muted-foreground">
+                  <ImageIcon className="h-10 w-10 mb-3" />
+                  <p className="text-sm font-medium">No content yet</p>
+                  {isOwnProfile && <p className="text-xs mt-1">Switch to "Manage" to upload your first post!</p>}
                 </div>
-              </motion.div>
-            ))}
-          </div>
+              ) : (
+                filtered.map((item) => (
+                  <motion.div key={item.id} whileHover={{ scale: 1.02 }} className="relative aspect-square rounded-xl overflow-hidden cursor-pointer group">
+                    {item.type === "video" ? (
+                      <video src={item.img} className={`w-full h-full object-cover ${item.locked ? "blur-lg scale-110" : ""} group-hover:scale-105 transition-transform duration-300`} muted />
+                    ) : (
+                      <img src={item.img} alt="" className={`w-full h-full object-cover ${item.locked ? "blur-lg scale-110" : ""} group-hover:scale-105 transition-transform duration-300`} />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    {item.locked && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <Lock className="h-8 w-8 text-accent mb-2" />
+                        <span className="text-xs font-bold text-accent">Subscribe to unlock</span>
+                      </div>
+                    )}
+                    {item.type === "video" && !item.locked && (
+                      <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-primary/80 text-primary-foreground text-[10px] font-bold">VIDEO</div>
+                    )}
+                    <div className="absolute bottom-2 left-2 flex items-center gap-1 text-xs text-foreground/80">
+                      <Heart className="h-3 w-3" /> {item.likes.toLocaleString()}
+                    </div>
+                  </motion.div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
       <Footer />

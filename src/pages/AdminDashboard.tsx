@@ -12,6 +12,7 @@ import logo from "@/assets/logo.png";
 import AdminUsersTab from "@/components/admin/AdminUsersTab";
 import AdminAnalyticsTab from "@/components/admin/AdminAnalyticsTab";
 import AdminContentTab from "@/components/admin/AdminContentTab";
+import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
 
 interface Stats {
   totalUsers: number;
@@ -242,15 +243,15 @@ const AdminDashboard = () => {
 
           {activeTab === "analytics" && <AdminAnalyticsTab />}
 
-          {(activeTab === "security" || activeTab === "settings") && (
+          {activeTab === "settings" && <AdminSettingsTab />}
+
+          {activeTab === "security" && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-center h-64">
               <div className="text-center">
                 <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
-                  <Settings className="h-5 w-5 text-muted-foreground" />
+                  <Shield className="h-5 w-5 text-muted-foreground" />
                 </div>
-                <p className="text-muted-foreground text-sm">
-                  {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} panel coming soon
-                </p>
+                <p className="text-muted-foreground text-sm">Security panel coming soon</p>
               </div>
             </motion.div>
           )}
