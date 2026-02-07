@@ -247,45 +247,81 @@ export type Database = {
           approval_status: string
           avatar_url: string | null
           bio: string | null
+          build: string | null
+          complexion: string | null
           cover_url: string | null
           created_at: string
           date_of_birth: string | null
           display_name: string | null
+          ethnicity: string | null
+          eye_color: string | null
+          hair_color: string | null
+          height: string | null
           id: string
           id_photo_url: string | null
+          interests: string[] | null
           is_creator: boolean
+          likes: string[] | null
+          location: string | null
+          measurements: string | null
+          profession: string | null
           updated_at: string
           user_id: string
+          zodiac_sign: string | null
         }
         Insert: {
           age_verified?: boolean
           approval_status?: string
           avatar_url?: string | null
           bio?: string | null
+          build?: string | null
+          complexion?: string | null
           cover_url?: string | null
           created_at?: string
           date_of_birth?: string | null
           display_name?: string | null
+          ethnicity?: string | null
+          eye_color?: string | null
+          hair_color?: string | null
+          height?: string | null
           id?: string
           id_photo_url?: string | null
+          interests?: string[] | null
           is_creator?: boolean
+          likes?: string[] | null
+          location?: string | null
+          measurements?: string | null
+          profession?: string | null
           updated_at?: string
           user_id: string
+          zodiac_sign?: string | null
         }
         Update: {
           age_verified?: boolean
           approval_status?: string
           avatar_url?: string | null
           bio?: string | null
+          build?: string | null
+          complexion?: string | null
           cover_url?: string | null
           created_at?: string
           date_of_birth?: string | null
           display_name?: string | null
+          ethnicity?: string | null
+          eye_color?: string | null
+          hair_color?: string | null
+          height?: string | null
           id?: string
           id_photo_url?: string | null
+          interests?: string[] | null
           is_creator?: boolean
+          likes?: string[] | null
+          location?: string | null
+          measurements?: string | null
+          profession?: string | null
           updated_at?: string
           user_id?: string
+          zodiac_sign?: string | null
         }
         Relationships: []
       }
