@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const ATLAS_API_BASE = "https://api.atlascloud.ai/v1";
+const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -16,8 +16,8 @@ serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
   );
 
-  const ATLAS_API_KEY = Deno.env.get("ATLAS_CLOUD_API_KEY");
-  if (!ATLAS_API_KEY) throw new Error("ATLAS_CLOUD_API_KEY not configured");
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
   try {
     // Auth
@@ -32,7 +32,7 @@ serve(async (req) => {
     if (!user) throw new Error("Not authenticated");
 
     const body = await req.json();
-    const { type, prompt, style, aspectRatio, characterName, characterDescription, characterStyle, motionPreset, duration, quality, sourceImageUrl, motionDescription } = body;
+    const { type, prompt, style, aspectRatio, referenceImageUrl, characterName, characterDescription, characterStyle, motionPreset, duration, quality, sourceImageUrl, motionDescription } = body;
 
     // Determine cost and API cost tracking
     const costs: Record<string, number> = { image: 25, character: 30, video: 75 };
@@ -84,50 +84,110 @@ serve(async (req) => {
 
     if (genError) throw new Error("Failed to create generation record");
 
-    // Call Atlas Cloud API
-    let atlasEndpoint: string;
-    let atlasBody: Record<string, unknown>;
+    // Build prompt for AI model
+    let aiPrompt = "";
+    let model = "google/gemini-2.5-flash-image";
+    const messages: Array<Record<string, unknown>> = [];
 
     switch (type) {
-      case "image":
-        atlasEndpoint = `${ATLAS_API_BASE}/images/generate`;
-        atlasBody = { prompt, style_preset: style, aspect_ratio: aspectRatio, num_images: 4 };
+      case "image": {
+        const styleText = style ? ` in ${style} style` : "";
+        const ratioText = aspectRatio ? ` with ${aspectRatio} aspect ratio` : "";
+        aiPrompt = `Generate an image${styleText}${ratioText}: ${prompt}`;
+        
+        if (referenceImageUrl) {
+          // Image editing with reference
+          messages.push({
+            role: "user",
+            content: [
+              { type: "text", text: aiPrompt },
+              { type: "image_url", image_url: { url: referenceImageUrl } }
+            ]
+          });
+        } else {
+          messages.push({ role: "user", content: aiPrompt });
+        }
         break;
-      case "character":
-        atlasEndpoint = `${ATLAS_API_BASE}/characters/create`;
-        atlasBody = { name: characterName, description: characterDescription, style: characterStyle };
+      }
+      case "character": {
+        const charStyleText = characterStyle ? ` in ${characterStyle} style` : "";
+        aiPrompt = `Create a character portrait${charStyleText}. Character name: ${characterName}. Description: ${characterDescription}. Generate a detailed, high-quality character image.`;
+        messages.push({ role: "user", content: aiPrompt });
         break;
-      case "video":
-        atlasEndpoint = `${ATLAS_API_BASE}/videos/generate`;
-        atlasBody = { source_image_url: sourceImageUrl, motion_preset: motionPreset, duration, quality, motion_description: motionDescription };
+      }
+      case "video": {
+        // For video, we generate a motion-enhanced image from the source
+        const motionText = motionPreset ? ` with ${motionPreset} motion` : "";
+        aiPrompt = `Create a cinematic still frame${motionText} suitable for animation. ${motionDescription || prompt || "A dynamic scene ready for animation."}. Ultra high resolution.`;
+        
+        if (sourceImageUrl) {
+          messages.push({
+            role: "user",
+            content: [
+              { type: "text", text: `Transform this image into a cinematic frame${motionText}. ${motionDescription || "Add dynamic energy suitable for animation."}` },
+              { type: "image_url", image_url: { url: sourceImageUrl } }
+            ]
+          });
+        } else {
+          messages.push({ role: "user", content: aiPrompt });
+        }
         break;
+      }
       default:
         throw new Error("Invalid generation type");
     }
 
-    const atlasResponse = await fetch(atlasEndpoint, {
+    // Call Lovable AI Gateway
+    const aiResponse = await fetch(LOVABLE_AI_URL, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${ATLAS_API_KEY}`,
+        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(atlasBody),
+      body: JSON.stringify({
+        model,
+        messages,
+        modalities: ["image", "text"],
+      }),
     });
 
-    if (!atlasResponse.ok) {
-      const errorText = await atlasResponse.text();
-      console.error("Atlas Cloud API error:", atlasResponse.status, errorText);
-
-      // Refund on failure
+    if (!aiResponse.ok) {
+      const errorText = await aiResponse.text();
+      console.error("AI Gateway error:", aiResponse.status, errorText);
       await supabase.from("ai_generations").update({ status: "failed" }).eq("id", generation.id);
-
-      return new Response(JSON.stringify({ error: `Atlas Cloud API error: ${atlasResponse.status}`, details: errorText }), {
+      return new Response(JSON.stringify({ error: `AI generation failed: ${aiResponse.status}`, details: errorText }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const atlasData = await atlasResponse.json();
+    const aiData = await aiResponse.json();
+    const generatedImages = aiData.choices?.[0]?.message?.images || [];
+    const textContent = aiData.choices?.[0]?.message?.content || "";
+
+    // Upload generated images to storage
+    const imageUrls: string[] = [];
+    for (let i = 0; i < generatedImages.length; i++) {
+      const img = generatedImages[i];
+      const base64Data = img.image_url?.url;
+      if (!base64Data) continue;
+
+      // Extract base64 content
+      const base64Content = base64Data.replace(/^data:image\/\w+;base64,/, "");
+      const binaryData = Uint8Array.from(atob(base64Content), (c) => c.charCodeAt(0));
+      const fileName = `${user.id}/${generation.id}_${i}.png`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("ai-studio")
+        .upload(fileName, binaryData, { contentType: "image/png", upsert: true });
+
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from("ai-studio").getPublicUrl(fileName);
+        imageUrls.push(urlData.publicUrl);
+      }
+    }
+
+    const resultUrl = imageUrls[0] || null;
 
     // Deduct BREAD (skip for admin)
     if (!isAdmin && wallet) {
@@ -142,18 +202,17 @@ serve(async (req) => {
     }
 
     // Update generation record
-    const resultUrl = atlasData.images?.[0]?.url || atlasData.character?.thumbnail_url || atlasData.video?.url || null;
     await supabase.from("ai_generations").update({
       status: "completed",
       result_url: resultUrl,
-      metadata: { ...body, atlas_response: atlasData },
+      metadata: { ...body, image_urls: imageUrls, ai_text: textContent },
     }).eq("id", generation.id);
 
     return new Response(JSON.stringify({
       success: true,
       generation_id: generation.id,
-      result: atlasData,
-      new_balance: wallet.balance - cost,
+      result: { images: imageUrls.map(url => ({ url })), text: textContent },
+      new_balance: isAdmin ? wallet?.balance ?? 0 : (wallet?.balance ?? 0) - cost,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
