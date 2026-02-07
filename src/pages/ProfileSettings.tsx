@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { User, Camera, Save, ArrowLeft } from "lucide-react";
+import { User, Camera, Save, ArrowLeft, Crown, ExternalLink } from "lucide-react";
 import { PushNotificationSettings } from "@/components/PushNotificationSettings";
 
 const ProfileSettings = () => {
@@ -175,6 +175,26 @@ const ProfileSettings = () => {
             <Button onClick={handleSave} disabled={saving} className="w-full bg-gradient-purple text-primary-foreground font-bold hover:opacity-90">
               <Save className="h-4 w-4 mr-1" /> {saving ? "Saving..." : "Save Changes"}
             </Button>
+
+            {/* Creator Links */}
+            {isCreator && (
+              <div className="flex flex-col gap-2 mt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => navigate("/settings/tiers")}
+                  className="w-full border-accent/30 text-accent hover:bg-accent/10"
+                >
+                  <Crown className="h-4 w-4 mr-2" /> Manage Subscription Tiers
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(`/creator/${(displayName || "").toLowerCase().replace(/\s+/g, "")}`)}
+                  className="w-full border-primary/30 text-primary hover:bg-primary/10"
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" /> View My Creator Profile
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Push Notifications */}
