@@ -56,6 +56,92 @@ export type Database = {
         }
         Relationships: []
       }
+      creator_subscription_tiers: {
+        Row: {
+          created_at: string
+          creator_id: string
+          description: string | null
+          id: string
+          is_active: boolean
+          price_cents: number
+          stripe_price_id: string | null
+          stripe_product_id: string | null
+          tier_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          creator_id: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          price_cents?: number
+          stripe_price_id?: string | null
+          stripe_product_id?: string | null
+          tier_name?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          creator_id?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          price_cents?: number
+          stripe_price_id?: string | null
+          stripe_product_id?: string | null
+          tier_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      creator_subscriptions: {
+        Row: {
+          created_at: string
+          creator_id: string
+          current_period_end: string | null
+          fan_user_id: string
+          id: string
+          status: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          tier_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          creator_id: string
+          current_period_end?: string | null
+          fan_user_id: string
+          id?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tier_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          creator_id?: string
+          current_period_end?: string | null
+          fan_user_id?: string
+          id?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tier_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creator_subscriptions_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "creator_subscription_tiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           age_verified: boolean
