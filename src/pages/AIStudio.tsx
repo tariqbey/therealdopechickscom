@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import GenerationProgress from "@/components/GenerationProgress";
 import GeneratedResultCard from "@/components/GeneratedResultCard";
+import VideoResultCard from "@/components/VideoResultCard";
 
 type StudioTab = "image" | "character" | "video";
 
@@ -51,6 +52,10 @@ const AIStudioPage = () => {
   const [selectedRatio, setSelectedRatio] = useState("1:1");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedResults, setGeneratedResults] = useState<string[]>([]);
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
+  const [isPollingVideo, setIsPollingVideo] = useState(false);
+  const [videoProgress, setVideoProgress] = useState(0);
+  const [atlasJobId, setAtlasJobId] = useState<string | null>(null);
   const [showBuyModal, setShowBuyModal] = useState(false);
 
   // Character state
@@ -94,13 +99,14 @@ const AIStudioPage = () => {
     toast({ title: "Image loaded", description: "Your image is ready to animate. Set your preferences and generate!" });
   };
 
-  const handleSaveToLibrary = async (imageUrl: string) => {
+  const handleSaveToLibrary = async (url: string) => {
     if (!user) throw new Error("Not logged in");
+    const genType = url.includes(".mp4") || url.includes("video") ? "video" : "image";
     const { error } = await supabase.from("ai_generations").insert({
       user_id: user.id,
-      generation_type: "image",
-      prompt: prompt || "Saved from AI Studio",
-      result_url: imageUrl,
+      generation_type: genType,
+      prompt: prompt || motionDescription || "Saved from AI Studio",
+      result_url: url,
       status: "completed",
       cost: 0,
       api_cost_cents: 0,
@@ -108,6 +114,68 @@ const AIStudioPage = () => {
     });
     if (error) throw error;
   };
+
+  // Video polling
+  const pollVideoGeneration = useCallback(async (jobId: string) => {
+    setIsPollingVideo(true);
+    setVideoProgress(5);
+    setGeneratedVideoUrl(null);
+
+    const startTime = Date.now();
+    const maxDuration = 5 * 60 * 1000; // 5 min timeout
+    const pollInterval = 5000; // 5 seconds
+
+    const poll = async () => {
+      if (Date.now() - startTime > maxDuration) {
+        setIsPollingVideo(false);
+        toast({ title: "Timeout", description: "Video generation is taking too long. Check history later.", variant: "destructive" });
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.functions.invoke("poll-generation", {
+          body: { generationId: jobId },
+        });
+
+        if (error) throw error;
+
+        const elapsed = (Date.now() - startTime) / 1000;
+        // Simulate progress: ramp up quickly then slow down near 90%
+        const simulatedProgress = Math.min(90, 5 + (elapsed / 120) * 85);
+        setVideoProgress(simulatedProgress);
+
+        if (data?.status === "succeeded" && data?.videoUrl) {
+          setVideoProgress(100);
+          setGeneratedVideoUrl(data.videoUrl);
+          setIsPollingVideo(false);
+          setIsGenerating(false);
+
+          // Update the generation record
+          if (atlasJobId) {
+            // We don't have the generation record ID here directly, but the edge function already saved it
+          }
+
+          toast({ title: "Video ready!", description: "Your video has been generated successfully." });
+          return;
+        }
+
+        if (data?.status === "failed") {
+          setIsPollingVideo(false);
+          setIsGenerating(false);
+          toast({ title: "Video failed", description: "The video generation failed. Please try again.", variant: "destructive" });
+          return;
+        }
+
+        // Still processing, poll again
+        setTimeout(poll, pollInterval);
+      } catch (err: any) {
+        console.error("Poll error:", err);
+        setTimeout(poll, pollInterval); // Retry on error
+      }
+    };
+
+    poll();
+  }, [toast, atlasJobId]);
 
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>, target: "video" | "image") => {
     const file = e.target.files?.[0];
@@ -190,6 +258,12 @@ const AIStudioPage = () => {
 
       if (data?.error) {
         toast({ title: "Generation failed", description: data.error, variant: "destructive" });
+      } else if (data?.polling && data?.atlas_job_id) {
+        // Video generation is async - start polling
+        setAtlasJobId(data.atlas_job_id);
+        toast({ title: "Video generation started!", description: "This may take 1-3 minutes. Please wait..." });
+        pollVideoGeneration(data.atlas_job_id);
+        return; // Don't setIsGenerating(false) yet
       } else {
         const images = data?.result?.images?.map((img: any) => img.url).filter(Boolean) || [];
         const videoUrl = data?.result?.video?.url;
@@ -200,8 +274,8 @@ const AIStudioPage = () => {
           setGeneratedResults(images);
           toast({ title: "Generation complete!", description: isAdmin ? "No BREAD charged (Admin)" : `Cost: ${costs[activeTab]} BREAD` });
         } else if (videoUrl) {
-          setGeneratedResults([videoUrl]);
-          toast({ title: "Generation complete!", description: isAdmin ? "No BREAD charged (Admin)" : `Cost: ${costs[activeTab]} BREAD` });
+          setGeneratedVideoUrl(videoUrl);
+          toast({ title: "Video ready!", description: isAdmin ? "No BREAD charged (Admin)" : `Cost: ${costs[activeTab]} BREAD` });
         } else if (charUrl) {
           setGeneratedResults([charUrl]);
           toast({ title: "Generation complete!", description: isAdmin ? "No BREAD charged (Admin)" : `Cost: ${costs[activeTab]} BREAD` });
@@ -498,11 +572,62 @@ const AIStudioPage = () => {
                   </div>
                   <CostBreakdown tab="video" isAdmin={isAdmin} breakdown={getCostBreakdown("video")} />
                   <div className="flex items-center justify-end mt-3">
-                    <Button onClick={handleGenerate} disabled={isGenerating || !sourceImageUrl} className="bg-gradient-purple text-primary-foreground font-bold hover:opacity-90" size="sm">
-                      <Video className="h-4 w-4 mr-1" /> {isGenerating ? "Generating..." : "Generate Video"}
+                    <Button onClick={handleGenerate} disabled={isGenerating || isPollingVideo || !sourceImageUrl} className="bg-gradient-purple text-primary-foreground font-bold hover:opacity-90" size="sm">
+                      <Video className="h-4 w-4 mr-1" /> {isGenerating || isPollingVideo ? "Generating..." : "Generate Video"}
                     </Button>
                   </div>
                 </div>
+
+                {/* Video Generation Progress */}
+                {(isGenerating || isPollingVideo) && activeTab === "video" && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-xl bg-gradient-card border border-primary/20 p-6 glow-purple"
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="relative">
+                        <Video className="h-8 w-8 text-primary animate-pulse" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-sm">Generating Video</h3>
+                        <p className="text-xs text-muted-foreground">
+                          {videoProgress < 20 ? "Sending to AI..." : videoProgress < 50 ? "Processing frames..." : videoProgress < 80 ? "Rendering video..." : "Finalizing..."}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mb-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-muted-foreground">Progress</span>
+                        <span className="text-xs font-mono text-primary">{Math.round(videoProgress)}%</span>
+                      </div>
+                      <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                        <motion.div
+                          className="h-full bg-gradient-to-r from-primary to-purple-500 rounded-full"
+                          animate={{ width: `${videoProgress}%` }}
+                          transition={{ duration: 0.5 }}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground text-center mt-3">
+                      Video generation typically takes 1-3 minutes. Please don't leave this page.
+                    </p>
+                  </motion.div>
+                )}
+
+                {/* Video Result */}
+                {generatedVideoUrl && !isPollingVideo && (
+                  <div>
+                    <h3 className="text-sm font-bold mb-3">Generated Video</h3>
+                    <div className="max-w-lg">
+                      <VideoResultCard
+                        videoUrl={generatedVideoUrl}
+                        onSaveToLibrary={handleSaveToLibrary}
+                        onRerun={handleGenerate}
+                      />
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
           </div>
