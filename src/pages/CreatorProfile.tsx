@@ -58,14 +58,7 @@ const tierFeatures: Record<string, string[]> = {
   Gold: ["Everything in Silver", "Custom content requests", "1-on-1 video calls", "Early access to new drops", "Exclusive merch discounts"],
 };
 
-const dummyContent = [
-  { id: "d1", type: "photo", locked: false, img: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=400&fit=crop", likes: 342 },
-  { id: "d2", type: "photo", locked: true, img: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=400&fit=crop", likes: 891 },
-  { id: "d3", type: "video", locked: true, img: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=400&fit=crop", likes: 1203 },
-  { id: "d4", type: "photo", locked: false, img: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop", likes: 567 },
-  { id: "d5", type: "photo", locked: true, img: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=400&h=400&fit=crop", likes: 2100 },
-  { id: "d6", type: "video", locked: true, img: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=400&h=400&fit=crop", likes: 1540 },
-];
+const dummyContent: { id: string; type: string; locked: boolean; img: string; likes: number }[] = [];
 
 const CreatorProfile = () => {
   const { handle } = useParams<{ handle: string }>();
@@ -76,7 +69,6 @@ const CreatorProfile = () => {
   const [creator, setCreator] = useState<CreatorData | null>(null);
   const [tiers, setTiers] = useState<TierData[]>([]);
   const [posts, setPosts] = useState<CreatorPost[]>([]);
-  const [showDummy, setShowDummy] = useState(true);
   const [loadingCreator, setLoadingCreator] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [editingPost, setEditingPost] = useState<CreatorPost | null>(null);
@@ -117,18 +109,8 @@ const CreatorProfile = () => {
       setLoadingCreator(false);
     };
 
-    // Load dummy content setting
-    const loadSettings = async () => {
-      const { data } = await supabase
-        .from("platform_settings" as any)
-        .select("*")
-        .eq("key", "show_dummy_content")
-        .maybeSingle();
-      if (data) setShowDummy((data as any).value?.enabled ?? true);
-    };
 
     loadCreator();
-    loadSettings();
 
     // Check if current user is admin
     if (userId) {
@@ -213,10 +195,7 @@ const CreatorProfile = () => {
     isReal: true,
   }));
 
-  // Always show dummy teaser content alongside real posts to entice fans
-  const allContent = contentItems.length < 6
-    ? [...contentItems, ...dummyContent.slice(0, Math.max(4, 6 - contentItems.length)).map((d) => ({ ...d, isReal: false, locked: true }))]
-    : contentItems;
+  const allContent = contentItems;
 
   const filtered = allContent.filter((c) =>
     activeTab === "all" || activeTab === "manage" ? true : activeTab === "photos" ? c.type === "photo" : c.type === "video"
@@ -228,11 +207,7 @@ const CreatorProfile = () => {
   const bio = creator?.bio || "Content creator ✨";
   const joinedDate = creator ? new Date(creator.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "";
 
-  const displayTiers = tiers.length > 0 ? tiers : (showDummy ? [
-    { id: "demo-bronze", tier_name: "Bronze", price_cents: 499, description: null, is_active: true },
-    { id: "demo-silver", tier_name: "Silver", price_cents: 999, description: null, is_active: true },
-    { id: "demo-gold", tier_name: "Gold", price_cents: 2499, description: null, is_active: true },
-  ] : []);
+  const displayTiers = tiers;
 
   if (loadingCreator) {
     return (
