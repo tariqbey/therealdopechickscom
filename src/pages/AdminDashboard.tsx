@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import {
   Users, DollarSign, Image, TrendingUp, Settings, LogOut,
-  BarChart3, Shield, Eye, Home, Video, Sparkles
+  BarChart3, Shield, Eye, Home, Video, Sparkles, Crown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/logo.png";
@@ -14,6 +14,7 @@ import AdminAnalyticsTab from "@/components/admin/AdminAnalyticsTab";
 import AdminContentTab from "@/components/admin/AdminContentTab";
 import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
 import AdminSecurityTab from "@/components/admin/AdminSecurityTab";
+import AdminFeaturedTab from "@/components/admin/AdminFeaturedTab";
 
 interface Stats {
   totalUsers: number;
@@ -103,6 +104,7 @@ const AdminDashboard = () => {
   const sidebarItems = [
     { id: "overview", label: "Overview", icon: BarChart3 },
     { id: "users", label: "Users", icon: Users },
+    { id: "featured", label: "Featured", icon: Crown },
     { id: "content", label: "Monetization", icon: DollarSign },
     { id: "analytics", label: "Analytics", icon: TrendingUp },
     { id: "security", label: "Security", icon: Shield },
@@ -162,6 +164,7 @@ const AdminDashboard = () => {
             <h1 className="text-2xl font-display font-bold text-foreground">
               {activeTab === "overview" && "Dashboard Overview"}
               {activeTab === "users" && "User Management"}
+              {activeTab === "featured" && "Featured Creators"}
               {activeTab === "content" && "API Monetization"}
               {activeTab === "analytics" && "Analytics"}
               {activeTab === "security" && "Security"}
@@ -239,6 +242,8 @@ const AdminDashboard = () => {
           {activeTab === "users" && (
             <AdminUsersTab users={users} onRefresh={fetchUsers} />
           )}
+
+          {activeTab === "featured" && <AdminFeaturedTab />}
 
           {activeTab === "content" && <AdminContentTab />}
 

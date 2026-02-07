@@ -94,18 +94,33 @@ const SectionHeader = ({
   </motion.div>
 );
 
+const toCard = (c: RealCreator) => ({
+  name: c.display_name || "Creator",
+  handle: (c.display_name || "creator").toLowerCase().replace(/\s+/g, ""),
+  avatar: c.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face",
+  coverImage: c.cover_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&h=350&fit=crop",
+  subscribers: "—",
+  price: 0,
+  isVerified: true,
+});
+
 const FeaturedCreators = () => {
   const [showDummy, setShowDummy] = useState(true);
-  const [realCreators, setRealCreators] = useState<RealCreator[]>([]);
+  const [featuredCreators, setFeaturedCreators] = useState<RealCreator[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
-      const [settingRes, creatorsRes] = await Promise.all([
+      const [dummyRes, featuredRes, creatorsRes] = await Promise.all([
         supabase
           .from("platform_settings")
           .select("*")
           .eq("key", "show_dummy_content")
+          .maybeSingle(),
+        supabase
+          .from("platform_settings")
+          .select("*")
+          .eq("key", "featured_creators")
           .maybeSingle(),
         supabase
           .from("profiles")
@@ -113,29 +128,34 @@ const FeaturedCreators = () => {
           .eq("is_creator", true),
       ]);
 
-      if (settingRes.data) {
-        setShowDummy((settingRes.data as any).value?.enabled ?? true);
+      if (dummyRes.data) {
+        setShowDummy((dummyRes.data as any).value?.enabled ?? true);
       }
-      setRealCreators((creatorsRes.data as RealCreator[]) || []);
+
+      const allCreators = (creatorsRes.data as RealCreator[]) || [];
+      const featuredIds: string[] = (featuredRes.data as any)?.value?.user_ids || [];
+
+      // Build featured list in order
+      const ordered = featuredIds
+        .map((id) => allCreators.find((c) => c.user_id === id))
+        .filter(Boolean) as RealCreator[];
+
+      setFeaturedCreators(ordered);
       setLoading(false);
     };
     load();
   }, []);
 
-  // Build real creator cards
-  const realCards = realCreators.map((c) => ({
-    name: c.display_name || "Creator",
-    handle: (c.display_name || "creator").toLowerCase().replace(/\s+/g, ""),
-    avatar: c.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face",
-    coverImage: c.cover_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&h=350&fit=crop",
-    subscribers: "—",
-    price: 0,
-    isVerified: true,
-  }));
+  const featuredCards = featuredCreators.map(toCard);
 
-  // If dummy content is off, only show real creators
-  const featured = showDummy ? [...realCards, ...mockCreators.slice(0, 3)] : realCards;
-  const trending = showDummy ? mockCreators.slice(3) : [];
+  // If dummy on and no featured picked, show mock; otherwise show real featured
+  const displayFeatured = featuredCards.length > 0
+    ? featuredCards
+    : showDummy
+      ? mockCreators.slice(0, 3).map((m) => ({ ...m }))
+      : [];
+
+  const trending = showDummy && featuredCards.length === 0 ? mockCreators.slice(3) : [];
 
   if (loading) return null;
 
@@ -145,9 +165,9 @@ const FeaturedCreators = () => {
         {/* Spotlight */}
         <SectionHeader icon={Crown} title="Featured Creators" subtitle="The Dopest" />
 
-        {featured.length > 0 ? (
+        {displayFeatured.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-20">
-            {featured.map((creator, i) => (
+            {displayFeatured.map((creator, i) => (
               <motion.div
                 key={creator.handle + i}
                 initial={{ opacity: 0, y: 20 }}
@@ -166,7 +186,7 @@ const FeaturedCreators = () => {
           </div>
         )}
 
-        {/* Trending - only when dummy is on */}
+        {/* Trending - only when dummy is on and no real featured */}
         {trending.length > 0 && (
           <>
             <SectionHeader icon={TrendingUp} title="Trending Now" subtitle="Hot & Rising" />
