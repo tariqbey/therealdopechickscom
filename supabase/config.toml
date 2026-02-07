@@ -35,3 +35,15 @@ verify_jwt = false
 
 [functions.poll-generation]
 verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.create-credits-checkout]
+verify_jwt = false
+
+[functions.spend-credits]
+verify_jwt = false
+
+[functions.analyze-profile-image]
+verify_jwt = false
