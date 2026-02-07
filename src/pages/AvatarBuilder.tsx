@@ -11,11 +11,11 @@ import StepStyle, { type StyleData } from "@/components/avatar-builder/StepStyle
 import StepReview, { buildPrompt } from "@/components/avatar-builder/StepReview";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { useWallet } from "@/hooks/useWallet";
+import { useCredits } from "@/hooks/useCredits";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Sparkles, Coins } from "lucide-react";
-import BuyBreadModal from "@/components/BuyBreadModal";
+import { Sparkles } from "lucide-react";
+import BuyCreditsModal from "@/components/BuyCreditsModal";
 
 const TOTAL_STEPS = 5;
 const AVATAR_COST = 30;
@@ -34,7 +34,7 @@ const AvatarBuilderPage = () => {
   const [style, setStyle] = useState<StyleData>({ outfit: "", setting: "", mood: "", artStyle: "" });
 
   const { user } = useAuth();
-  const { balance } = useWallet();
+  const { creditBalance } = useCredits();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -49,8 +49,8 @@ const AvatarBuilderPage = () => {
       navigate("/auth");
       return;
     }
-    if (balance < AVATAR_COST) {
-      toast({ title: "Not enough BREAD", description: `You need ${AVATAR_COST} BREAD.`, variant: "destructive" });
+    if (creditBalance < AVATAR_COST) {
+      toast({ title: "Not enough Credits", description: `You need ${AVATAR_COST} Credits.`, variant: "destructive" });
       setShowBuyModal(true);
       return;
     }
@@ -65,7 +65,7 @@ const AvatarBuilderPage = () => {
       if (data?.error) {
         toast({ title: "Generation failed", description: data.error, variant: "destructive" });
       } else {
-        toast({ title: "Avatar generated!", description: `Cost: ${AVATAR_COST} BREAD` });
+        toast({ title: "Avatar generated!", description: `Cost: ${AVATAR_COST} Credits` });
         const url = data?.result?.character?.thumbnail_url || data?.result?.images?.[0]?.url;
         if (url) setGeneratedUrl(url);
       }
@@ -93,13 +93,13 @@ const AvatarBuilderPage = () => {
       <div className="container mx-auto px-4 pt-24 pb-12 max-w-2xl">
         <AvatarBuilderProgress currentStep={step} totalSteps={TOTAL_STEPS} stepLabel={stepLabels[step - 1]} />
 
-        {/* BREAD Balance */}
+        {/* Credits Balance */}
         <div className="flex items-center justify-between p-3 rounded-xl bg-card border border-border mb-6">
           <div className="flex items-center gap-2">
-            <Coins className="h-5 w-5 text-accent" />
-            <span className="text-sm font-bold text-gradient-gold">{user ? `${balance} BREAD` : "Log in"}</span>
+            <Sparkles className="h-5 w-5 text-primary" />
+            <span className="text-sm font-bold text-primary">{user ? `${creditBalance} Credits` : "Log in"}</span>
           </div>
-          <span className="text-xs text-muted-foreground">Cost: {AVATAR_COST} BREAD</span>
+          <span className="text-xs text-muted-foreground">Cost: {AVATAR_COST} Credits</span>
         </div>
 
         <AnimatePresence mode="wait">
@@ -155,7 +155,7 @@ const AvatarBuilderPage = () => {
         </div>
       </div>
       <Footer />
-      <BuyBreadModal open={showBuyModal} onClose={() => setShowBuyModal(false)} />
+      <BuyCreditsModal open={showBuyModal} onClose={() => setShowBuyModal(false)} />
     </div>
   );
 };

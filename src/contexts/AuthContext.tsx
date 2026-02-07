@@ -22,16 +22,24 @@ interface Wallet {
   balance: number;
 }
 
+interface CreditWallet {
+  id: string;
+  user_id: string;
+  balance: number;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
   wallet: Wallet | null;
+  creditWallet: CreditWallet | null;
   loading: boolean;
   signUp: (email: string, password: string, displayName: string, dateOfBirth: string, isCreator: boolean) => Promise<{ error: string | null }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshWallet: () => Promise<void>;
+  refreshCreditWallet: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
 
@@ -48,6 +56,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
@@ -68,8 +77,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setWallet(data as Wallet | null);
   };
 
+  const fetchCreditWallet = async (userId: string) => {
+    const { data } = await supabase
+      .from("credit_wallets" as any)
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle();
+    setCreditWallet((data as unknown as CreditWallet) ?? null);
+  };
+
   const refreshWallet = async () => {
     if (user) await fetchWallet(user.id);
+  };
+
+  const refreshCreditWallet = async () => {
+    if (user) await fetchCreditWallet(user.id);
   };
 
   const refreshProfile = async () => {
@@ -82,14 +104,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          // Use setTimeout to avoid deadlock with Supabase auth
           setTimeout(() => {
             fetchProfile(session.user.id);
             fetchWallet(session.user.id);
+            fetchCreditWallet(session.user.id);
           }, 0);
         } else {
           setProfile(null);
           setWallet(null);
+          setCreditWallet(null);
         }
         setLoading(false);
       }
@@ -101,6 +124,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (session?.user) {
         fetchProfile(session.user.id);
         fetchWallet(session.user.id);
+        fetchCreditWallet(session.user.id);
       }
       setLoading(false);
     });
@@ -109,13 +133,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signUp = async (email: string, password: string, displayName: string, dateOfBirth: string, isCreator: boolean) => {
-    // Age verification - must be 18+
     const dob = new Date(dateOfBirth);
     const today = new Date();
     let age = today.getFullYear() - dob.getFullYear();
     const m = today.getMonth() - dob.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
-    
+
     if (age < 18) {
       return { error: "You must be 18 or older to register." };
     }
@@ -134,7 +157,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     if (error) return { error: error.message };
-
     return { error: null };
   };
 
@@ -150,10 +172,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSession(null);
     setProfile(null);
     setWallet(null);
+    setCreditWallet(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, wallet, loading, signUp, signIn, signOut, refreshWallet, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, profile, wallet, creditWallet, loading, signUp, signIn, signOut, refreshWallet, refreshCreditWallet, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
