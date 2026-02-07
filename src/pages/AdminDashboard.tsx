@@ -103,7 +103,7 @@ const AdminDashboard = () => {
   const sidebarItems = [
     { id: "overview", label: "Overview", icon: BarChart3 },
     { id: "users", label: "Users", icon: Users },
-    { id: "content", label: "Content", icon: Image },
+    { id: "content", label: "Monetization", icon: DollarSign },
     { id: "analytics", label: "Analytics", icon: TrendingUp },
     { id: "security", label: "Security", icon: Shield },
     { id: "settings", label: "Settings", icon: Settings },
@@ -162,7 +162,7 @@ const AdminDashboard = () => {
             <h1 className="text-2xl font-display font-bold text-foreground">
               {activeTab === "overview" && "Dashboard Overview"}
               {activeTab === "users" && "User Management"}
-              {activeTab === "content" && "Content Moderation"}
+              {activeTab === "content" && "API Monetization"}
               {activeTab === "analytics" && "Analytics"}
               {activeTab === "security" && "Security"}
               {activeTab === "settings" && "Settings"}
