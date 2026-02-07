@@ -63,13 +63,20 @@ const AIStudioPage = () => {
   const [motionDescription, setMotionDescription] = useState("");
   const [sourceImageUrl, setSourceImageUrl] = useState<string | null>(null);
   const [sourceImagePreview, setSourceImagePreview] = useState<string | null>(null);
+
+  // Image tab reference image
+  const [refImageUrl, setRefImageUrl] = useState<string | null>(null);
+  const [refImagePreview, setRefImagePreview] = useState<string | null>(null);
+
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const refFileInputRef = useRef<HTMLInputElement>(null);
 
   // Disclaimer state
   const [showDisclaimer, setShowDisclaimer] = useState(false);
   const [disclaimerChecks, setDisclaimerChecks] = useState({ own: false, noMinors: false, noProhibited: false });
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [uploadTarget, setUploadTarget] = useState<"video" | "image">("video");
 
   const { user, profile } = useAuth();
   const { balance } = useWallet();
@@ -78,7 +85,7 @@ const AIStudioPage = () => {
 
   const isAdmin = user?.email === "drpaydex@gmail.com";
 
-  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>, target: "video" | "image") => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
@@ -87,12 +94,12 @@ const AIStudioPage = () => {
       return;
     }
 
-    // Show disclaimer dialog
     setPendingFile(file);
+    setUploadTarget(target);
     setDisclaimerChecks({ own: false, noMinors: false, noProhibited: false });
     setShowDisclaimer(true);
-    // Reset file input so same file can be re-selected
     if (fileInputRef.current) fileInputRef.current.value = "";
+    if (refFileInputRef.current) refFileInputRef.current.value = "";
   };
 
   const handleDisclaimerAccept = async () => {
@@ -107,9 +114,16 @@ const AIStudioPage = () => {
       if (uploadError) throw uploadError;
 
       const { data: urlData } = supabase.storage.from("ai-studio").getPublicUrl(path);
-      setSourceImageUrl(urlData.publicUrl);
-      setSourceImagePreview(URL.createObjectURL(pendingFile));
-      toast({ title: "Image uploaded!", description: "Ready to generate video." });
+      const previewUrl = URL.createObjectURL(pendingFile);
+
+      if (uploadTarget === "video") {
+        setSourceImageUrl(urlData.publicUrl);
+        setSourceImagePreview(previewUrl);
+      } else {
+        setRefImageUrl(urlData.publicUrl);
+        setRefImagePreview(previewUrl);
+      }
+      toast({ title: "Image uploaded!", description: uploadTarget === "video" ? "Ready to generate video." : "Reference image set for generation." });
     } catch (err: any) {
       toast({ title: "Upload failed", description: err.message, variant: "destructive" });
     } finally {
@@ -139,7 +153,7 @@ const AIStudioPage = () => {
       let body: Record<string, unknown> = { type: activeTab };
 
       if (activeTab === "image") {
-        body = { ...body, prompt, style: selectedStyle, aspectRatio: selectedRatio };
+        body = { ...body, prompt, style: selectedStyle, aspectRatio: selectedRatio, referenceImageUrl: refImageUrl };
       } else if (activeTab === "character") {
         body = { ...body, characterName, characterStyle, characterDescription: characterDesc };
       } else {
@@ -245,11 +259,50 @@ const AIStudioPage = () => {
             {activeTab === "image" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
                 <div className="rounded-xl bg-gradient-card border border-border p-5">
+                  {/* Reference Image Upload */}
+                  <label className="text-xs font-bold text-muted-foreground mb-2 block">Reference Image (Optional)</label>
+                  <input
+                    ref={refFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleFileSelected(e, "image")}
+                  />
+                  {refImagePreview ? (
+                    <div className="relative rounded-xl overflow-hidden mb-4 max-h-48 flex items-center justify-center bg-muted">
+                      <img src={refImagePreview} alt="Reference" className="max-h-48 object-contain" />
+                      <button
+                        onClick={() => { setRefImageUrl(null); setRefImagePreview(null); }}
+                        className="absolute top-2 right-2 p-1 rounded-full bg-background/80 hover:bg-background text-foreground"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => refFileInputRef.current?.click()}
+                      className="border-2 border-dashed border-border rounded-xl p-5 text-center hover:border-primary/30 transition-colors cursor-pointer mb-4"
+                    >
+                      {isUploading && uploadTarget === "image" ? (
+                        <div className="animate-pulse">
+                          <Upload className="h-8 w-8 text-primary mx-auto mb-2" />
+                          <p className="text-sm font-medium">Uploading...</p>
+                        </div>
+                      ) : (
+                        <>
+                          <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-sm font-medium mb-1">Upload a reference image</p>
+                          <p className="text-xs text-muted-foreground">Use as inspiration or edit an existing image</p>
+                        </>
+                      )}
+                    </div>
+                  )}
+
                   <label className="text-sm font-bold mb-2 block">Describe your image</label>
                   <textarea
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="A glamorous portrait with golden hour lighting, soft bokeh, studio quality..."
+                    placeholder={refImageUrl ? "Describe how to modify or use this reference image..." : "A glamorous portrait with golden hour lighting, soft bokeh, studio quality..."}
                     className="w-full h-28 bg-muted border border-border rounded-lg p-3 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                   <div className="mt-4">
@@ -343,7 +396,7 @@ const AIStudioPage = () => {
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    onChange={handleFileSelected}
+                    onChange={(e) => handleFileSelected(e, "video")}
                   />
                   {sourceImagePreview ? (
                     <div className="relative rounded-xl overflow-hidden mb-4 max-h-64 flex items-center justify-center bg-muted">
