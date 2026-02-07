@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BuyBreadModal from "@/components/BuyBreadModal";
@@ -89,6 +89,19 @@ const AIStudioPage = () => {
   const { balance } = useWallet();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Handle incoming state from generation history
+  useEffect(() => {
+    const state = location.state as { sourceImageUrl?: string; tab?: string } | null;
+    if (state?.sourceImageUrl) {
+      setActiveTab("video");
+      setSourceImageUrl(state.sourceImageUrl);
+      setSourceImagePreview(state.sourceImageUrl);
+      // Clear state so it doesn't re-trigger
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const isAdmin = user?.email === "drpaydex@gmail.com";
 
