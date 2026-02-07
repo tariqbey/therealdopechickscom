@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const ATLAS_API_URL = "https://api.atlascloud.ai/api/v1/chat/completions";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -18,6 +19,9 @@ serve(async (req) => {
 
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+
+  const ATLAS_API_KEY = Deno.env.get("ATLAS_CLOUD_API_KEY");
+  if (!ATLAS_API_KEY) throw new Error("ATLAS_CLOUD_API_KEY not configured");
 
   try {
     // Auth
@@ -84,42 +88,58 @@ serve(async (req) => {
 
     if (genError) throw new Error("Failed to create generation record");
 
-    // Build prompt for AI model
-    let aiPrompt = "";
-    let model = "google/gemini-2.5-flash-image";
-    const messages: Array<Record<string, unknown>> = [];
+    // Build request based on type
+    let apiUrl: string;
+    let apiKey: string;
+    let requestBody: Record<string, unknown>;
+    let isAtlasImage = false;
 
     switch (type) {
       case "image": {
+        // Use Atlas Cloud qwen-image/edit-plus for image generation
+        isAtlasImage = true;
+        apiUrl = ATLAS_API_URL;
+        apiKey = ATLAS_API_KEY;
+
         const styleText = style ? ` in ${style} style` : "";
         const ratioText = aspectRatio ? ` with ${aspectRatio} aspect ratio` : "";
-        aiPrompt = `Generate an image${styleText}${ratioText}: ${prompt}`;
-        
+        const fullPrompt = `Generate an image${styleText}${ratioText}: ${prompt}`;
+
+        const messages: Array<Record<string, unknown>> = [];
         if (referenceImageUrl) {
-          // Image editing with reference
           messages.push({
             role: "user",
             content: [
-              { type: "text", text: aiPrompt },
-              { type: "image_url", image_url: { url: referenceImageUrl } }
+              { type: "image_url", image_url: { url: referenceImageUrl } },
+              { type: "text", text: fullPrompt }
             ]
           });
         } else {
-          messages.push({ role: "user", content: aiPrompt });
+          messages.push({ role: "user", content: fullPrompt });
         }
+
+        requestBody = {
+          model: "atlascloud/qwen-image/edit-plus",
+          messages,
+        };
         break;
       }
       case "character": {
+        apiUrl = LOVABLE_AI_URL;
+        apiKey = LOVABLE_API_KEY;
         const charStyleText = characterStyle ? ` in ${characterStyle} style` : "";
-        aiPrompt = `Create a character portrait${charStyleText}. Character name: ${characterName}. Description: ${characterDescription}. Generate a detailed, high-quality character image.`;
-        messages.push({ role: "user", content: aiPrompt });
+        requestBody = {
+          model: "google/gemini-2.5-flash-image",
+          messages: [{ role: "user", content: `Create a character portrait${charStyleText}. Character name: ${characterName}. Description: ${characterDescription}. Generate a detailed, high-quality character image.` }],
+          modalities: ["image", "text"],
+        };
         break;
       }
       case "video": {
-        // For video, we generate a motion-enhanced image from the source
+        apiUrl = LOVABLE_AI_URL;
+        apiKey = LOVABLE_API_KEY;
         const motionText = motionPreset ? ` with ${motionPreset} motion` : "";
-        aiPrompt = `Create a cinematic still frame${motionText} suitable for animation. ${motionDescription || prompt || "A dynamic scene ready for animation."}. Ultra high resolution.`;
-        
+        const messages: Array<Record<string, unknown>> = [];
         if (sourceImageUrl) {
           messages.push({
             role: "user",
@@ -129,31 +149,32 @@ serve(async (req) => {
             ]
           });
         } else {
-          messages.push({ role: "user", content: aiPrompt });
+          messages.push({ role: "user", content: `Create a cinematic still frame${motionText} suitable for animation. ${motionDescription || prompt || "A dynamic scene ready for animation."}. Ultra high resolution.` });
         }
+        requestBody = {
+          model: "google/gemini-2.5-flash-image",
+          messages,
+          modalities: ["image", "text"],
+        };
         break;
       }
       default:
         throw new Error("Invalid generation type");
     }
 
-    // Call Lovable AI Gateway
-    const aiResponse = await fetch(LOVABLE_AI_URL, {
+    // Call the appropriate API
+    const aiResponse = await fetch(apiUrl, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+        "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        modalities: ["image", "text"],
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error("AI Gateway error:", aiResponse.status, errorText);
+      console.error("AI API error:", aiResponse.status, errorText);
       await supabase.from("ai_generations").update({ status: "failed" }).eq("id", generation.id);
       return new Response(JSON.stringify({ error: `AI generation failed: ${aiResponse.status}`, details: errorText }), {
         status: 502,
@@ -162,28 +183,57 @@ serve(async (req) => {
     }
 
     const aiData = await aiResponse.json();
-    const generatedImages = aiData.choices?.[0]?.message?.images || [];
-    const textContent = aiData.choices?.[0]?.message?.content || "";
+    console.log("AI response keys:", JSON.stringify(Object.keys(aiData)));
 
-    // Upload generated images to storage
+    // Parse results - Atlas Cloud returns OpenAI-compatible format
     const imageUrls: string[] = [];
-    for (let i = 0; i < generatedImages.length; i++) {
-      const img = generatedImages[i];
-      const base64Data = img.image_url?.url;
-      if (!base64Data) continue;
+    let textContent = "";
 
-      // Extract base64 content
-      const base64Content = base64Data.replace(/^data:image\/\w+;base64,/, "");
-      const binaryData = Uint8Array.from(atob(base64Content), (c) => c.charCodeAt(0));
-      const fileName = `${user.id}/${generation.id}_${i}.png`;
+    if (isAtlasImage) {
+      // Atlas Cloud qwen-image returns base64 images in choices[].message.content[]
+      const choice = aiData.choices?.[0];
+      const content = choice?.message?.content;
+      if (Array.isArray(content)) {
+        for (let i = 0; i < content.length; i++) {
+          const part = content[i];
+          if (part.type === "image_url" && part.image_url?.url) {
+            const base64Data = part.image_url.url;
+            const base64Content = base64Data.replace(/^data:image\/\w+;base64,/, "");
+            const binaryData = Uint8Array.from(atob(base64Content), (c) => c.charCodeAt(0));
+            const fileName = `${user.id}/${generation.id}_${i}.png`;
+            const { error: uploadError } = await supabase.storage
+              .from("ai-studio")
+              .upload(fileName, binaryData, { contentType: "image/png", upsert: true });
+            if (!uploadError) {
+              const { data: urlData } = supabase.storage.from("ai-studio").getPublicUrl(fileName);
+              imageUrls.push(urlData.publicUrl);
+            }
+          } else if (part.type === "text") {
+            textContent += part.text;
+          }
+        }
+      } else if (typeof content === "string") {
+        textContent = content;
+      }
+    } else {
+      // Lovable AI gateway format
+      const generatedImages = aiData.choices?.[0]?.message?.images || [];
+      textContent = aiData.choices?.[0]?.message?.content || "";
 
-      const { error: uploadError } = await supabase.storage
-        .from("ai-studio")
-        .upload(fileName, binaryData, { contentType: "image/png", upsert: true });
-
-      if (!uploadError) {
-        const { data: urlData } = supabase.storage.from("ai-studio").getPublicUrl(fileName);
-        imageUrls.push(urlData.publicUrl);
+      for (let i = 0; i < generatedImages.length; i++) {
+        const img = generatedImages[i];
+        const base64Data = img.image_url?.url;
+        if (!base64Data) continue;
+        const base64Content = base64Data.replace(/^data:image\/\w+;base64,/, "");
+        const binaryData = Uint8Array.from(atob(base64Content), (c) => c.charCodeAt(0));
+        const fileName = `${user.id}/${generation.id}_${i}.png`;
+        const { error: uploadError } = await supabase.storage
+          .from("ai-studio")
+          .upload(fileName, binaryData, { contentType: "image/png", upsert: true });
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from("ai-studio").getPublicUrl(fileName);
+          imageUrls.push(urlData.publicUrl);
+        }
       }
     }
 
