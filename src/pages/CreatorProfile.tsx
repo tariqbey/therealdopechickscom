@@ -213,9 +213,9 @@ const CreatorProfile = () => {
     isReal: true,
   }));
 
-  // Only show dummy content if toggle is on AND creator has few posts
-  const allContent = showDummy && contentItems.length < 3
-    ? [...contentItems, ...dummyContent.map((d) => ({ ...d, isReal: false }))]
+  // Always show dummy teaser content alongside real posts to entice fans
+  const allContent = contentItems.length < 6
+    ? [...contentItems, ...dummyContent.slice(0, Math.max(4, 6 - contentItems.length)).map((d) => ({ ...d, isReal: false, locked: true }))]
     : contentItems;
 
   const filtered = allContent.filter((c) =>
