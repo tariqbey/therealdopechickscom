@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import CreatorContentManager from "@/components/CreatorContentManager";
 import CreatorProfileEditor from "@/components/CreatorProfileEditor";
+import PostEditModal from "@/components/PostEditModal";
 
 interface CreatorData {
   user_id: string;
@@ -77,11 +78,14 @@ const CreatorProfile = () => {
   const [posts, setPosts] = useState<CreatorPost[]>([]);
   const [showDummy, setShowDummy] = useState(true);
   const [loadingCreator, setLoadingCreator] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [editingPost, setEditingPost] = useState<CreatorPost | null>(null);
   const { user, profile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
   const isOwnProfile = user && creator && user.id === creator.user_id;
+  const canManagePosts = isOwnProfile || isAdmin;
 
   const userId = user?.id;
 
@@ -125,6 +129,17 @@ const CreatorProfile = () => {
 
     loadCreator();
     loadSettings();
+
+    // Check if current user is admin
+    if (userId) {
+      supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .maybeSingle()
+        .then(({ data }) => setIsAdmin(!!data));
+    }
   }, [handle, userId]);
 
   const loadTiers = async (creatorUserId: string) => {
@@ -198,6 +213,7 @@ const CreatorProfile = () => {
     isReal: true,
   }));
 
+  // Only show dummy content if toggle is on AND creator has few posts
   const allContent = showDummy && contentItems.length < 3
     ? [...contentItems, ...dummyContent.map((d) => ({ ...d, isReal: false }))]
     : contentItems;
@@ -212,11 +228,11 @@ const CreatorProfile = () => {
   const bio = creator?.bio || "Content creator ✨";
   const joinedDate = creator ? new Date(creator.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "";
 
-  const displayTiers = tiers.length > 0 ? tiers : [
+  const displayTiers = tiers.length > 0 ? tiers : (showDummy ? [
     { id: "demo-bronze", tier_name: "Bronze", price_cents: 499, description: null, is_active: true },
     { id: "demo-silver", tier_name: "Silver", price_cents: 999, description: null, is_active: true },
     { id: "demo-gold", tier_name: "Gold", price_cents: 2499, description: null, is_active: true },
-  ];
+  ] : []);
 
   if (loadingCreator) {
     return (
@@ -380,7 +396,17 @@ const CreatorProfile = () => {
                 </div>
               ) : (
                 filtered.map((item) => (
-                  <motion.div key={item.id} whileHover={{ scale: 1.02 }} className="relative aspect-square rounded-xl overflow-hidden cursor-pointer group">
+                  <motion.div
+                    key={item.id}
+                    whileHover={{ scale: 1.02 }}
+                    className="relative aspect-square rounded-xl overflow-hidden cursor-pointer group"
+                    onClick={() => {
+                      if (canManagePosts && item.isReal) {
+                        const post = posts.find((p) => p.id === item.id);
+                        if (post) setEditingPost(post);
+                      }
+                    }}
+                  >
                     {item.type === "video" ? (
                       <video src={item.img} className={`w-full h-full object-cover ${item.locked ? "blur-lg scale-110" : ""} group-hover:scale-105 transition-transform duration-300`} muted />
                     ) : (
@@ -399,6 +425,11 @@ const CreatorProfile = () => {
                     <div className="absolute bottom-2 left-2 flex items-center gap-1 text-xs text-foreground/80">
                       <Heart className="h-3 w-3" /> {item.likes.toLocaleString()}
                     </div>
+                    {canManagePosts && item.isReal && (
+                      <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-background/80 text-[10px] font-bold text-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                        Tap to manage
+                      </div>
+                    )}
                   </motion.div>
                 ))
               )}
@@ -406,6 +437,17 @@ const CreatorProfile = () => {
           )}
         </div>
       </div>
+
+      {/* Post Edit Modal for owner or admin */}
+      {editingPost && (
+        <PostEditModal
+          post={editingPost}
+          open={!!editingPost}
+          onClose={() => setEditingPost(null)}
+          onRefresh={() => creator && loadPosts(creator.user_id)}
+        />
+      )}
+
       <Footer />
     </div>
   );

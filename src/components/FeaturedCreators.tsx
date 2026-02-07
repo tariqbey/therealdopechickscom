@@ -1,6 +1,8 @@
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import CreatorCard from "./CreatorCard";
 import { Crown, TrendingUp, Sparkles } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const mockCreators = [
   {
@@ -62,6 +64,13 @@ const mockCreators = [
   },
 ];
 
+interface RealCreator {
+  user_id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  cover_url: string | null;
+}
+
 const SectionHeader = ({
   icon: Icon,
   title,
@@ -86,42 +95,96 @@ const SectionHeader = ({
 );
 
 const FeaturedCreators = () => {
+  const [showDummy, setShowDummy] = useState(true);
+  const [realCreators, setRealCreators] = useState<RealCreator[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      const [settingRes, creatorsRes] = await Promise.all([
+        supabase
+          .from("platform_settings")
+          .select("*")
+          .eq("key", "show_dummy_content")
+          .maybeSingle(),
+        supabase
+          .from("profiles")
+          .select("user_id, display_name, avatar_url, cover_url")
+          .eq("is_creator", true),
+      ]);
+
+      if (settingRes.data) {
+        setShowDummy((settingRes.data as any).value?.enabled ?? true);
+      }
+      setRealCreators((creatorsRes.data as RealCreator[]) || []);
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  // Build real creator cards
+  const realCards = realCreators.map((c) => ({
+    name: c.display_name || "Creator",
+    handle: (c.display_name || "creator").toLowerCase().replace(/\s+/g, ""),
+    avatar: c.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face",
+    coverImage: c.cover_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&h=350&fit=crop",
+    subscribers: "—",
+    price: 0,
+    isVerified: true,
+  }));
+
+  // If dummy content is off, only show real creators
+  const featured = showDummy ? [...realCards, ...mockCreators.slice(0, 3)] : realCards;
+  const trending = showDummy ? mockCreators.slice(3) : [];
+
+  if (loading) return null;
+
   return (
     <section id="creators" className="py-20">
       <div className="container mx-auto px-4">
         {/* Spotlight */}
         <SectionHeader icon={Crown} title="Featured Creators" subtitle="The Dopest" />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-20">
-          {mockCreators.slice(0, 3).map((creator, i) => (
-            <motion.div
-              key={creator.handle}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-            >
-              <CreatorCard {...creator} />
-            </motion.div>
-          ))}
-        </div>
+        {featured.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-20">
+            {featured.map((creator, i) => (
+              <motion.div
+                key={creator.handle + i}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+              >
+                <CreatorCard {...creator} />
+              </motion.div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground mb-20">
+            <Crown className="h-10 w-10 mb-3 opacity-30" />
+            <p className="text-sm font-medium">No creators yet</p>
+          </div>
+        )}
 
-        {/* Trending */}
-        <SectionHeader icon={TrendingUp} title="Trending Now" subtitle="Hot & Rising" />
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-20">
-          {mockCreators.slice(3).map((creator, i) => (
-            <motion.div
-              key={creator.handle}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-            >
-              <CreatorCard {...creator} />
-            </motion.div>
-          ))}
-        </div>
+        {/* Trending - only when dummy is on */}
+        {trending.length > 0 && (
+          <>
+            <SectionHeader icon={TrendingUp} title="Trending Now" subtitle="Hot & Rising" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-20">
+              {trending.map((creator, i) => (
+                <motion.div
+                  key={creator.handle}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.1 }}
+                >
+                  <CreatorCard {...creator} />
+                </motion.div>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Categories */}
         <SectionHeader icon={Sparkles} title="Browse Categories" subtitle="Explore" />
