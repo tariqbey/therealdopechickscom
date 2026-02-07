@@ -15,6 +15,7 @@ import {
 import { Upload, X, Loader2, Image as ImageIcon, Video, Library } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import LibraryPicker from "@/components/LibraryPicker";
+import PostEditModal from "@/components/PostEditModal";
 
 interface CreatorPost {
   id: string;
@@ -43,8 +44,8 @@ const CreatorContentManager = ({ posts, onRefresh }: ContentManagerProps) => {
   const [description, setDescription] = useState("");
   const [isLocked, setIsLocked] = useState(true);
   const [minTier, setMinTier] = useState("Bronze");
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
+  const [editingPost, setEditingPost] = useState<CreatorPost | null>(null);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -96,21 +97,6 @@ const CreatorContentManager = ({ posts, onRefresh }: ContentManagerProps) => {
     }
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const handleDelete = async (postId: string) => {
-    setDeletingId(postId);
-    const { error } = await supabase
-      .from("creator_posts" as any)
-      .delete()
-      .eq("id", postId);
-    if (error) {
-      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Post deleted" });
-      onRefresh();
-    }
-    setDeletingId(null);
   };
 
   return (
@@ -212,33 +198,38 @@ const CreatorContentManager = ({ posts, onRefresh }: ContentManagerProps) => {
           <h3 className="text-sm font-bold text-foreground">Your Content ({posts.length})</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {posts.map((post) => (
-              <div key={post.id} className="relative group rounded-xl overflow-hidden border border-border bg-muted aspect-square">
+              <div
+                key={post.id}
+                className="relative group rounded-xl overflow-hidden border border-border bg-muted aspect-square cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
+                onClick={() => setEditingPost(post)}
+              >
                 {post.media_type === "video" ? (
                   <video src={post.media_url} className="w-full h-full object-cover" muted />
                 ) : (
                   <img src={post.media_url} alt={post.title || ""} className="w-full h-full object-cover" />
                 )}
-                {/* Overlay */}
-                <div className="absolute inset-0 bg-background/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
                   <div className="flex items-center gap-1 text-xs">
                     {post.media_type === "video" ? <Video className="h-3 w-3" /> : <ImageIcon className="h-3 w-3" />}
                     <span>{post.is_locked ? `🔒 ${post.min_tier}+` : "Public"}</span>
                   </div>
                   {post.title && <span className="text-xs font-medium text-center px-2 truncate w-full">{post.title}</span>}
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="h-7 text-xs"
-                    disabled={deletingId === post.id}
-                    onClick={() => handleDelete(post.id)}
-                  >
-                    {deletingId === post.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <><X className="h-3 w-3 mr-1" /> Delete</>}
-                  </Button>
+                  <span className="text-[10px] text-muted-foreground mt-1">Tap to edit</span>
                 </div>
               </div>
             ))}
           </div>
         </div>
+      )}
+
+      {/* Post Edit Modal */}
+      {editingPost && (
+        <PostEditModal
+          post={editingPost}
+          open={!!editingPost}
+          onClose={() => setEditingPost(null)}
+          onRefresh={onRefresh}
+        />
       )}
     </div>
   );
