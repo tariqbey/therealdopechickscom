@@ -24,6 +24,7 @@ const ProfileSettings = () => {
   const [displayName, setDisplayName] = useFormPersist("profile_displayName", profile?.display_name || "");
   const [bio, setBio] = useFormPersist("profile_bio", profile?.bio || "");
   const [isCreator, setIsCreator] = useFormPersist("profile_isCreator", profile?.is_creator || false);
+  const [category, setCategory] = useFormPersist("profile_category", (profile as any)?.category || "");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
@@ -50,6 +51,7 @@ const ProfileSettings = () => {
       setDisplayName(profile.display_name || "");
       setBio(profile.bio || "");
       setIsCreator(profile.is_creator || false);
+      setCategory((profile as any)?.category || "");
       setAvatarUrl(profile.avatar_url || "");
       setCoverUrl((profile as any)?.cover_url || "");
     }
@@ -146,6 +148,7 @@ const ProfileSettings = () => {
         is_creator: isCreator,
         avatar_url: avatarUrl || null,
         cover_url: coverUrl || null,
+        category: isCreator && category ? category : null,
       } as any)
       .eq("user_id", user.id);
 
@@ -278,6 +281,29 @@ const ProfileSettings = () => {
                 </button>
               </div>
             </div>
+
+            {/* Category (Creators) */}
+            {isCreator && (
+              <div>
+                <Label className="text-xs font-bold text-muted-foreground">Category <span className="text-destructive">*</span></Label>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {["Glamour", "Fitness", "Cosplay", "Fantasy", "Artistic", "Lifestyle", "AI Generated", "Exclusive"].map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setCategory(cat)}
+                      className={`px-4 py-2 rounded-full text-xs font-medium border transition-colors ${
+                        category === cat
+                          ? "bg-primary/10 border-primary text-primary"
+                          : "border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+                {!category && <p className="text-xs text-destructive mt-1">Please select a category</p>}
+              </div>
+            )}
 
             {/* Email (read-only) */}
             <div>
