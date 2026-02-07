@@ -1,20 +1,29 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Coins, Zap, Shield, ArrowRight } from "lucide-react";
-
-const packages = [
-  { amount: 50, price: 4.99, popular: false },
-  { amount: 100, price: 10, popular: false },
-  { amount: 250, price: 20, popular: false },
-  { amount: 500, price: 40, popular: true },
-  { amount: 1000, price: 75, popular: false },
-  { amount: 2500, price: 175, popular: false },
-];
+import { Coins, Zap, Shield } from "lucide-react";
+import { useWallet, BREAD_PACKAGES } from "@/hooks/useWallet";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const BreadSection = () => {
+  const { purchaseBread } = useWallet();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState<string | null>(null);
+
+  const handleBuy = async (pkg: typeof BREAD_PACKAGES[number]) => {
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+    setLoading(pkg.id);
+    await purchaseBread(pkg.priceId);
+    setLoading(null);
+  };
+
   return (
     <section id="bread" className="py-20 relative overflow-hidden">
-      {/* Subtle bg glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/5 blur-[120px]" />
 
       <div className="container mx-auto px-4 relative">
@@ -39,9 +48,9 @@ const BreadSection = () => {
         </motion.div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 max-w-5xl mx-auto mb-12">
-          {packages.map((pkg, i) => (
+          {BREAD_PACKAGES.map((pkg, i) => (
             <motion.div
-              key={pkg.amount}
+              key={pkg.id}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -59,12 +68,14 @@ const BreadSection = () => {
               )}
               <div className="text-2xl font-black text-gradient-gold mb-1">{pkg.amount}</div>
               <div className="text-xs text-muted-foreground mb-1">BREAD</div>
-              <div className="text-lg font-bold text-foreground">${pkg.price.toFixed(2)}</div>
+              <div className="text-lg font-bold text-foreground">{pkg.price}</div>
               <Button
                 size="sm"
+                disabled={loading === pkg.id}
+                onClick={() => handleBuy(pkg)}
                 className="w-full mt-3 h-8 text-xs bg-gradient-purple text-primary-foreground font-semibold hover:opacity-90"
               >
-                Buy
+                {loading === pkg.id ? "..." : "Buy"}
               </Button>
             </motion.div>
           ))}

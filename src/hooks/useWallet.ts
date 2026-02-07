@@ -3,9 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 export const BREAD_PACKAGES = [
-  { id: "500", name: "500 BREAD", amount: 500, price: "$4.99", priceId: "price_1SxpgwKb1BapFa4iMI5JpRC8", popular: false },
-  { id: "1200", name: "1,200 BREAD", amount: 1200, price: "$9.99", priceId: "price_1SxphCKb1BapFa4ikZziXHOu", popular: true },
-  { id: "3500", name: "3,500 BREAD", amount: 3500, price: "$24.99", priceId: "price_1SxphMKb1BapFa4iZWXgtr1n", popular: false },
+  { id: "50", name: "50 BREAD", amount: 50, price: "$4.99", priceId: "price_1SyE9VKb1BapFa4iRNnwQbdY", popular: false },
+  { id: "100", name: "100 BREAD", amount: 100, price: "$10.00", priceId: "price_1SyEAVKb1BapFa4iRdbLTQ7L", popular: false },
+  { id: "250", name: "250 BREAD", amount: 250, price: "$20.00", priceId: "price_1SyEAlKb1BapFa4iQRsEOzVT", popular: false },
+  { id: "500", name: "500 BREAD", amount: 500, price: "$40.00", priceId: "price_1SyEAvKb1BapFa4it4SG0KCJ", popular: true },
+  { id: "1000", name: "1,000 BREAD", amount: 1000, price: "$75.00", priceId: "price_1SyEB7Kb1BapFa4iSthPX9Cb", popular: false },
+  { id: "2500", name: "2,500 BREAD", amount: 2500, price: "$175.00", priceId: "price_1SyEBHKb1BapFa4iDE4O5ujE", popular: false },
 ] as const;
 
 export const useWallet = () => {
