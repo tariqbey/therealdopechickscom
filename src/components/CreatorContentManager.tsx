@@ -12,8 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, X, Loader2, Image as ImageIcon, Video } from "lucide-react";
+import { Upload, X, Loader2, Image as ImageIcon, Video, Library } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import LibraryPicker from "@/components/LibraryPicker";
 
 interface CreatorPost {
   id: string;
@@ -43,6 +44,7 @@ const CreatorContentManager = ({ posts, onRefresh }: ContentManagerProps) => {
   const [isLocked, setIsLocked] = useState(true);
   const [minTier, setMinTier] = useState("Bronze");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showLibrary, setShowLibrary] = useState(false);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -163,9 +165,46 @@ const CreatorContentManager = ({ posts, onRefresh }: ContentManagerProps) => {
             <><Upload className="h-4 w-4 mr-2" /> Choose Photo or Video</>
           )}
         </Button>
+        <Button
+          variant="outline"
+          onClick={() => setShowLibrary(true)}
+          className="w-full border-dashed text-xs"
+        >
+          <Library className="h-4 w-4 mr-2" /> Import from AI Library
+        </Button>
         <p className="text-xs text-muted-foreground text-center">JPG, PNG, MP4, MOV. Max 50MB.</p>
         <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleUpload} />
       </div>
+
+      {/* Library Picker */}
+      {showLibrary && (
+        <LibraryPicker
+          onClose={() => setShowLibrary(false)}
+          onSelect={async (items) => {
+            setShowLibrary(false);
+            if (!user) return;
+            let added = 0;
+            for (const item of items) {
+              const { error } = await supabase
+                .from("creator_posts" as any)
+                .insert({
+                  creator_id: user.id,
+                  title: title.trim() || null,
+                  description: description.trim() || null,
+                  media_url: item.url,
+                  media_type: item.type,
+                  is_locked: isLocked,
+                  min_tier: isLocked ? minTier : null,
+                } as any);
+              if (!error) added++;
+            }
+            if (added > 0) {
+              toast({ title: `${added} item${added > 1 ? "s" : ""} added to profile!` });
+              onRefresh();
+            }
+          }}
+        />
+      )}
 
       {/* Existing Posts */}
       {posts.length > 0 && (
