@@ -21,9 +21,9 @@ const PWAInstallBanner = () => {
     const isPWA = window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true;
     if (isPWA) return;
 
-    // Don't show if user dismissed recently (24 hours)
-    const dismissed = localStorage.getItem(DISMISSED_KEY);
-    if (dismissed && Date.now() - parseInt(dismissed) < 24 * 60 * 60 * 1000) return;
+    // Don't show if user dismissed in this session
+    const dismissed = sessionStorage.getItem(DISMISSED_KEY);
+    if (dismissed) return;
 
     // Only show on mobile
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -34,15 +34,29 @@ const PWAInstallBanner = () => {
 
     // For iOS, show immediately
     if (isIOSDevice) {
-      setTimeout(() => setShow(true), 2000);
+      setTimeout(() => setShow(true), 1000);
       return;
     }
 
     // For Android, wait for beforeinstallprompt
     const handler = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setTimeout(() => setShow(true), 2000);
+      const prompt = e as BeforeInstallPromptEvent;
+      setDeferredPrompt(prompt);
+      // Auto-trigger the native install dialog immediately
+      setTimeout(async () => {
+        try {
+          await prompt.prompt();
+          const { outcome } = await prompt.userChoice;
+          if (outcome === "accepted") {
+            setShow(false);
+          } else {
+            setShow(true);
+          }
+        } catch {
+          setShow(true);
+        }
+      }, 500);
     };
 
     window.addEventListener("beforeinstallprompt", handler);
@@ -51,7 +65,7 @@ const PWAInstallBanner = () => {
 
   const dismiss = () => {
     setShow(false);
-    localStorage.setItem(DISMISSED_KEY, Date.now().toString());
+    sessionStorage.setItem(DISMISSED_KEY, "1");
   };
 
   const handleInstall = async () => {
