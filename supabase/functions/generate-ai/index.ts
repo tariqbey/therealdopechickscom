@@ -96,32 +96,36 @@ serve(async (req) => {
 
     switch (type) {
       case "image": {
-        // Use Atlas Cloud qwen-image/edit-plus for image generation
-        isAtlasImage = true;
-        apiUrl = ATLAS_API_URL;
-        apiKey = ATLAS_API_KEY;
-
         const styleText = style ? ` in ${style} style` : "";
         const ratioText = aspectRatio ? ` with ${aspectRatio} aspect ratio` : "";
         const fullPrompt = `Generate an image${styleText}${ratioText}: ${prompt}`;
 
-        const messages: Array<Record<string, unknown>> = [];
         if (referenceImageUrl) {
-          messages.push({
-            role: "user",
-            content: [
-              { type: "image_url", image_url: { url: referenceImageUrl } },
-              { type: "text", text: fullPrompt }
-            ]
-          });
-        } else {
-          messages.push({ role: "user", content: fullPrompt });
-        }
+          // Use Atlas Cloud qwen-image/edit-plus for image editing (I2I)
+          isAtlasImage = true;
+          apiUrl = ATLAS_API_URL;
+          apiKey = ATLAS_API_KEY;
 
-        requestBody = {
-          model: "atlascloud/qwen-image/edit-plus",
-          messages,
-        };
+          requestBody = {
+            model: "atlascloud/qwen-image/edit-plus",
+            messages: [{
+              role: "user",
+              content: [
+                { type: "image_url", image_url: { url: referenceImageUrl } },
+                { type: "text", text: fullPrompt }
+              ]
+            }],
+          };
+        } else {
+          // No reference image: use Lovable AI for text-to-image
+          apiUrl = LOVABLE_AI_URL;
+          apiKey = LOVABLE_API_KEY;
+          requestBody = {
+            model: "google/gemini-2.5-flash-image",
+            messages: [{ role: "user", content: fullPrompt }],
+            modalities: ["image", "text"],
+          };
+        }
         break;
       }
       case "character": {
@@ -173,8 +177,10 @@ serve(async (req) => {
     });
 
     if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
+      let errorText = "";
+      try { errorText = await aiResponse.text(); } catch { errorText = "Could not read error body"; }
       console.error("AI API error:", aiResponse.status, errorText);
+      console.error("Request was:", JSON.stringify({ url: apiUrl, model: (requestBody as any).model }));
       await supabase.from("ai_generations").update({ status: "failed" }).eq("id", generation.id);
       return new Response(JSON.stringify({ error: `AI generation failed: ${aiResponse.status}`, details: errorText }), {
         status: 502,
