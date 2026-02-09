@@ -6,7 +6,7 @@ import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import {
   Heart, Lock, Star, Crown, MessageCircle, Share2,
-  Image as ImageIcon, Video, Calendar, Users, Loader2, CheckCircle2, Plus,
+  Image as ImageIcon, Video, Loader2, CheckCircle2, Plus,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -221,43 +221,73 @@ const CreatorProfile = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      {/* Cover */}
-      <div className="relative h-64 md:h-80 mt-16">
-        <img src={coverUrl} alt="" className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
+      {/* Cover Banner */}
+      <div className="relative h-56 md:h-72 lg:h-80 mt-16 overflow-hidden">
+        <img src={coverUrl} alt="" className="w-full h-full object-cover scale-105" />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-background/10" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background/40 via-transparent to-background/40" />
       </div>
 
-      <div className="container mx-auto px-4 -mt-20 relative">
-        {/* Profile Header */}
-        <div className="flex flex-col md:flex-row gap-6 items-start md:items-end mb-8">
-          <div className="w-32 h-32 rounded-full border-4 border-background overflow-hidden ring-2 ring-primary/50 shrink-0">
-            <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-2xl md:text-3xl font-black">{displayName}</h1>
-              <Crown className="h-5 w-5 text-accent" />
+      <div className="container mx-auto px-4 relative">
+        {/* Profile Header Card */}
+        <div className="-mt-24 md:-mt-28 relative z-10 mb-10">
+          <div className="rounded-2xl bg-gradient-card border border-border/60 p-5 md:p-8 shadow-2xl shadow-background/80">
+            <div className="flex flex-col md:flex-row gap-5 md:gap-8 items-center md:items-start">
+              {/* Avatar */}
+              <div className="relative -mt-16 md:-mt-20 shrink-0">
+                <div className="w-28 h-28 md:w-36 md:h-36 rounded-full overflow-hidden ring-4 ring-background shadow-xl shadow-background/60">
+                  <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-accent flex items-center justify-center ring-2 ring-background">
+                  <Crown className="h-4 w-4 text-accent-foreground" />
+                </div>
+              </div>
+
+              {/* Info */}
+              <div className="flex-1 text-center md:text-left mt-2 md:mt-4">
+                <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3 mb-1">
+                  <h1 className="text-2xl md:text-3xl font-black text-foreground tracking-tight">{displayName}</h1>
+                </div>
+                <p className="text-sm text-muted-foreground mb-3 font-medium">@{(displayName).toLowerCase().replace(/\s+/g, "")}</p>
+                <p className="text-sm text-secondary-foreground max-w-lg leading-relaxed">{bio}</p>
+
+                {/* Stats Row */}
+                <div className="flex flex-wrap justify-center md:justify-start gap-5 mt-4">
+                  <div className="flex flex-col items-center md:items-start">
+                    <span className="text-lg font-black text-gradient-gold">{posts.length}</span>
+                    <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Posts</span>
+                  </div>
+                  {joinedDate && (
+                    <div className="flex flex-col items-center md:items-start">
+                      <span className="text-lg font-black text-foreground">{joinedDate}</span>
+                      <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Joined</span>
+                    </div>
+                  )}
+                  {displayTiers.length > 0 && (
+                    <div className="flex flex-col items-center md:items-start">
+                      <span className="text-lg font-black text-gradient-purple">{displayTiers.length}</span>
+                      <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Tiers</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 shrink-0 mt-2 md:mt-4">
+                <Button variant="outline" size="icon" className="rounded-full border-border/60 text-muted-foreground hover:text-foreground hover:border-accent/40 transition-colors">
+                  <Share2 className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" className="rounded-full border-border/60 text-muted-foreground hover:text-foreground hover:border-destructive/40 transition-colors">
+                  <Heart className="h-4 w-4" />
+                </Button>
+                <Button
+                  className="rounded-full bg-gradient-purple text-primary-foreground font-bold hover:opacity-90 px-5"
+                  onClick={() => navigate(`/messages?to=${creator?.user_id}`)}
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" /> Message
+                </Button>
+              </div>
             </div>
-            <p className="text-sm text-muted-foreground mb-2">@{(displayName).toLowerCase().replace(/\s+/g, "")}</p>
-            <p className="text-sm text-secondary-foreground max-w-lg">{bio}</p>
-            <div className="flex flex-wrap gap-4 mt-3 text-xs text-muted-foreground">
-              {joinedDate && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Joined {joinedDate}</span>}
-              <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {posts.length} posts</span>
-            </div>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <Button variant="outline" size="icon" className="border-border text-muted-foreground hover:text-foreground">
-              <Share2 className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="icon" className="border-border text-muted-foreground hover:text-foreground">
-              <Heart className="h-4 w-4" />
-            </Button>
-            <Button
-              className="bg-gradient-purple text-primary-foreground font-bold hover:opacity-90"
-              onClick={() => navigate(`/messages?to=${creator?.user_id}`)}
-            >
-              <MessageCircle className="h-4 w-4 mr-2" /> Message
-            </Button>
           </div>
         </div>
 
