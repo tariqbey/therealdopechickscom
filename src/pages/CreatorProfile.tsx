@@ -218,7 +218,7 @@ const CreatorProfile = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       <Navbar />
 
       {/* Cover Banner */}
@@ -362,21 +362,21 @@ const CreatorProfile = () => {
 
         {/* Content Section */}
         <div className="mb-12">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h2 className="text-xl font-black">Content</h2>
-            <div className="flex gap-1">
+            <div className="flex flex-wrap gap-1">
               {(["all", "photos", "videos", ...(isOwnProfile ? ["manage" as const, "edit" as const] : [])] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab as any)}
-                  className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  className={`px-3 sm:px-4 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
                     activeTab === tab ? "bg-gradient-purple text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {tab === "manage" ? (
                     <span className="flex items-center gap-1"><Plus className="h-3 w-3" /> Manage</span>
                   ) : tab === "edit" ? (
-                    <span className="flex items-center gap-1">✏️ Edit Profile</span>
+                    <span className="flex items-center gap-1">✏️ Edit</span>
                   ) : (
                     tab.charAt(0).toUpperCase() + tab.slice(1)
                   )}
