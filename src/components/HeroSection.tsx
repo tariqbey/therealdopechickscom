@@ -2,11 +2,13 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Play, Sparkles } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import dopeVideo from "@/assets/dope.mp4";
 import logo from "@/assets/logo.png";
 
 const HeroSection = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
@@ -66,13 +68,15 @@ const HeroSection = () => {
             transition={{ duration: 0.8, delay: 0.5 }}
             className="flex flex-wrap gap-4"
           >
-            <Button
-              size="lg"
-              onClick={() => navigate("/auth")}
-              className="bg-gradient-purple text-primary-foreground font-bold text-base px-8 glow-purple hover:opacity-90 transition-opacity"
-            >
-              Start Creating
-            </Button>
+            {!user ? (
+              <Button
+                size="lg"
+                onClick={() => navigate("/auth")}
+                className="bg-gradient-purple text-primary-foreground font-bold text-base px-8 glow-purple hover:opacity-90 transition-opacity"
+              >
+                Start Creating
+              </Button>
+            ) : null}
             <Button
               size="lg"
               variant="outline"

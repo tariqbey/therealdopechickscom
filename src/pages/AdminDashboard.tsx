@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import {
   Users, DollarSign, Image, TrendingUp, Settings, LogOut,
-  BarChart3, Shield, Eye, Home, Video, Sparkles, Crown
+  BarChart3, Shield, Eye, Home, Video, Sparkles, Crown, Menu, X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/logo.png";
@@ -40,6 +40,7 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [stats, setStats] = useState<Stats>({ totalUsers: 0, totalCreators: 0, totalGenerations: 0, totalBreadCirculating: 0 });
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -112,21 +113,33 @@ const AdminDashboard = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-background flex overflow-x-hidden">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-background/80 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-sidebar-background border-r border-sidebar-border flex flex-col">
-        <div className="p-4 border-b border-sidebar-border">
-          <a href="/">
-            <img src={logo} alt="Logo" className="h-10 w-auto mix-blend-screen" />
-          </a>
-          <p className="text-xs text-muted-foreground mt-1">Admin Panel</p>
+      <aside className={`fixed md:sticky top-0 left-0 h-screen w-64 bg-sidebar-background border-r border-sidebar-border flex flex-col z-50 transition-transform duration-300 ${
+        sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+      }`}>
+        <div className="p-4 border-b border-sidebar-border flex items-center justify-between">
+          <div>
+            <a href="/">
+              <img src={logo} alt="Logo" className="h-10 w-auto mix-blend-screen" />
+            </a>
+            <p className="text-xs text-muted-foreground mt-1">Admin Panel</p>
+          </div>
+          <button className="md:hidden text-foreground" onClick={() => setSidebarOpen(false)}>
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {sidebarItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => { setActiveTab(item.id); setSidebarOpen(false); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 activeTab === item.id
                   ? "bg-sidebar-accent text-sidebar-primary"
@@ -158,51 +171,54 @@ const AdminDashboard = () => {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto">
-        <header className="border-b border-border px-8 py-5 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-display font-bold text-foreground">
-              {activeTab === "overview" && "Dashboard Overview"}
-              {activeTab === "users" && "User Management"}
-              {activeTab === "featured" && "Featured Creators"}
-              {activeTab === "content" && "API Monetization"}
-              {activeTab === "analytics" && "Analytics"}
-              {activeTab === "security" && "Security"}
-              {activeTab === "settings" && "Settings"}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Welcome back, {profile?.display_name || "Admin"}
-            </p>
+      <main className="flex-1 min-w-0 overflow-auto">
+        <header className="border-b border-border px-4 md:px-8 py-4 md:py-5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <button className="md:hidden text-foreground" onClick={() => setSidebarOpen(true)}>
+              <Menu className="h-6 w-6" />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-xl md:text-2xl font-display font-bold text-foreground truncate">
+                {activeTab === "overview" && "Dashboard Overview"}
+                {activeTab === "users" && "User Management"}
+                {activeTab === "featured" && "Featured Creators"}
+                {activeTab === "content" && "API Monetization"}
+                {activeTab === "analytics" && "Analytics"}
+                {activeTab === "security" && "Security"}
+                {activeTab === "settings" && "Settings"}
+              </h1>
+              <p className="text-sm text-muted-foreground mt-0.5 truncate">
+                Welcome back, {profile?.display_name || "Admin"}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium bg-accent/10 text-accent px-2.5 py-1 rounded-full border border-accent/20">
-              <Shield className="h-3 w-3 inline mr-1" />Admin
-            </span>
-          </div>
+          <span className="text-xs font-medium bg-accent/10 text-accent px-2.5 py-1 rounded-full border border-accent/20 shrink-0">
+            <Shield className="h-3 w-3 inline mr-1" />Admin
+          </span>
         </header>
 
-        <div className="p-8">
+        <div className="p-4 md:p-8">
           {activeTab === "overview" && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                 {statCards.map((card) => (
-                  <div key={card.label} className="rounded-xl bg-gradient-card border border-border p-5">
+                  <div key={card.label} className="rounded-xl bg-gradient-card border border-border p-4 md:p-5">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">{card.label}</span>
+                      <span className="text-[10px] md:text-xs font-bold text-muted-foreground uppercase tracking-wide">{card.label}</span>
                       <card.icon className={`h-4 w-4 ${card.color}`} />
                     </div>
-                    <p className="text-3xl font-display font-bold text-foreground">{card.value}</p>
+                    <p className="text-2xl md:text-3xl font-display font-bold text-foreground">{card.value}</p>
                   </div>
                 ))}
               </div>
 
-              <div className="rounded-xl bg-gradient-card border border-border p-6">
+              <div className="rounded-xl bg-gradient-card border border-border p-4 md:p-6">
                 <h3 className="text-lg font-display font-bold text-foreground mb-4">Recent Users</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                <div className="overflow-x-auto -mx-4 md:mx-0">
+                  <table className="w-full text-sm min-w-[500px]">
                     <thead>
                       <tr className="text-muted-foreground text-left border-b border-border">
-                        <th className="pb-3 font-medium">User</th>
+                        <th className="pb-3 font-medium px-4 md:px-0">User</th>
                         <th className="pb-3 font-medium">Type</th>
                         <th className="pb-3 font-medium">Joined</th>
                         <th className="pb-3 font-medium">Actions</th>
@@ -211,11 +227,11 @@ const AdminDashboard = () => {
                     <tbody className="divide-y divide-border">
                       {users.slice(0, 10).map((u) => (
                         <tr key={u.id} className="text-foreground">
-                          <td className="py-3 flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground">
+                          <td className="py-3 px-4 md:px-0 flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
                               {(u.display_name || "?")[0].toUpperCase()}
                             </div>
-                            {u.display_name || "Unknown"}
+                            <span className="truncate">{u.display_name || "Unknown"}</span>
                           </td>
                           <td className="py-3">
                             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${u.is_creator ? "bg-accent/10 text-accent" : "bg-primary/10 text-primary"}`}>
