@@ -35,16 +35,32 @@ const AuthPage = () => {
         toast({ title: "Login failed", description: error, variant: "destructive" });
       } else {
         toast({ title: "Welcome back!" });
-        // Check if user is admin and redirect accordingly
-        const { data: session } = await (await import("@/integrations/supabase/client")).supabase.auth.getSession();
+        // Role-based redirect: admin → /admin, creator → their profile, fan → homepage
+        const { supabase: sb } = await import("@/integrations/supabase/client");
+        const { data: session } = await sb.auth.getSession();
         if (session?.session?.user) {
-          const { data: roleData } = await (await import("@/integrations/supabase/client")).supabase
+          const uid = session.session.user.id;
+          const { data: roleData } = await sb
             .from("user_roles")
             .select("role")
-            .eq("user_id", session.session.user.id)
+            .eq("user_id", uid)
             .eq("role", "admin")
             .maybeSingle();
-          navigate(roleData ? "/admin" : "/");
+          if (roleData) {
+            navigate("/admin");
+          } else {
+            const { data: prof } = await sb
+              .from("profiles")
+              .select("is_creator, display_name")
+              .eq("user_id", uid)
+              .maybeSingle();
+            if (prof?.is_creator && prof?.display_name) {
+              const slug = prof.display_name.toLowerCase().replace(/\s+/g, "");
+              navigate(`/creator/${slug}`);
+            } else {
+              navigate("/");
+            }
+          }
         } else {
           navigate("/");
         }
