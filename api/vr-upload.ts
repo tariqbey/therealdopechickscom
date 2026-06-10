@@ -51,7 +51,7 @@ export default async function handler(req: any, res: any) {
 
         return {
           allowedContentTypes: ["video/mp4", "video/quicktime", "video/webm"],
-          maximumSizeInBytes: 2 * 1024 * 1024 * 1024, // 2 GB
+          maximumSizeInBytes: Math.round(3.5 * 1024 * 1024 * 1024), // 3.5 GB
           addRandomSuffix: true,
           tokenPayload: JSON.stringify({ userId: user.id }),
         };

@@ -26,7 +26,7 @@ export interface VRVideo {
   created_at: string;
 }
 
-const MAX_VIDEO_MB = 2048; // 2 GB — videos go to Vercel Blob, not Supabase
+const MAX_VIDEO_MB = 3584; // 3.5 GB — videos go to Vercel Blob, not Supabase
 
 const VRVideoManager = () => {
   const { user } = useAuth();
@@ -186,7 +186,7 @@ const VRVideoManager = () => {
           <Headset className="h-4 w-4 text-primary" /> Upload VR180 Video
         </h3>
         <p className="text-xs text-muted-foreground">
-          Side-by-side stereo VR180 MP4 (H.264 recommended, max {MAX_VIDEO_MB}MB).
+          Side-by-side stereo VR180 MP4 (H.264 recommended, max 3.5GB).
           Fans watch it in a real VR headset right from your profile.
         </p>
 
@@ -254,7 +254,7 @@ const VRVideoManager = () => {
           onChange={(e) => {
             const f = e.target.files?.[0];
             if (f && f.size > MAX_VIDEO_MB * 1024 * 1024) {
-              toast({ title: "File too large", description: `Max ${MAX_VIDEO_MB}MB. Re-encode at a lower bitrate (~25 Mbps is ideal for streaming).`, variant: "destructive" });
+              toast({ title: "File too large", description: `Max 3.5GB. Re-encode at a lower bitrate (~25 Mbps is ideal for streaming).`, variant: "destructive" });
               e.target.value = "";
               return;
             }
