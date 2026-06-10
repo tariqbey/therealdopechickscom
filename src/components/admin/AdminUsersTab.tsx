@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { startImpersonation } from "@/lib/impersonation";
 import { motion } from "framer-motion";
-import { Eye, Shield, UserCheck, UserX, Search } from "lucide-react";
+import { Eye, Shield, UserCheck, UserX, Search, LogIn, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -34,9 +36,22 @@ interface AdminUsersTabProps {
 }
 
 const AdminUsersTab = ({ users, onRefresh }: AdminUsersTabProps) => {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [roles, setRoles] = useState<Record<string, string>>({});
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+
+  const signInAs = async (u: UserRow) => {
+    setLoadingAction(u.user_id + "-impersonate");
+    try {
+      await startImpersonation(u.user_id, u.display_name || "Unknown");
+      toast.success(`Now viewing as ${u.display_name || "user"}`);
+      navigate("/");
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setLoadingAction(null);
+  };
 
   const filteredUsers = users.filter(
     (u) =>
@@ -125,6 +140,7 @@ const AdminUsersTab = ({ users, onRefresh }: AdminUsersTabProps) => {
                 <th className="pb-3 font-medium">Creator</th>
                 <th className="pb-3 font-medium">Role</th>
                 <th className="pb-3 font-medium">Joined</th>
+                <th className="pb-3 font-medium">View As</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -167,6 +183,22 @@ const AdminUsersTab = ({ users, onRefresh }: AdminUsersTabProps) => {
                   </td>
                   <td className="py-3 text-muted-foreground">
                     {new Date(u.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="py-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => signInAs(u)}
+                      disabled={loadingAction === u.user_id + "-impersonate" || roles[u.user_id] === "admin"}
+                      title={roles[u.user_id] === "admin" ? "Can't impersonate another admin" : "Sign in as this user"}
+                    >
+                      {loadingAction === u.user_id + "-impersonate" ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <><LogIn className="h-3 w-3 mr-1" /> Sign in as</>
+                      )}
+                    </Button>
                   </td>
                 </tr>
               ))}

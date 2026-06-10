@@ -21,6 +21,7 @@ import Messages from "./pages/Messages";
 import TransactionHistory from "./pages/TransactionHistory";
 import NotFound from "./pages/NotFound";
 import PWAInstallBanner from "./components/PWAInstallBanner";
+import ImpersonationBar from "./components/ImpersonationBar";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +52,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
           <PWAInstallBanner />
+          <ImpersonationBar />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
