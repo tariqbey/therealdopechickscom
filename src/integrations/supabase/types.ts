@@ -427,6 +427,80 @@ export type Database = {
         }
         Relationships: []
       }
+      vr_video_unlocks: {
+        Row: {
+          bread_paid: number
+          created_at: string
+          fan_user_id: string
+          id: string
+          video_id: string
+        }
+        Insert: {
+          bread_paid?: number
+          created_at?: string
+          fan_user_id: string
+          id?: string
+          video_id: string
+        }
+        Update: {
+          bread_paid?: number
+          created_at?: string
+          fan_user_id?: string
+          id?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vr_video_unlocks_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "vr_videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vr_videos: {
+        Row: {
+          created_at: string
+          creator_id: string
+          description: string | null
+          id: string
+          is_published: boolean
+          price_bread: number
+          thumbnail_url: string | null
+          title: string
+          unlocks_count: number
+          updated_at: string
+          video_path: string
+        }
+        Insert: {
+          created_at?: string
+          creator_id: string
+          description?: string | null
+          id?: string
+          is_published?: boolean
+          price_bread?: number
+          thumbnail_url?: string | null
+          title: string
+          unlocks_count?: number
+          updated_at?: string
+          video_path: string
+        }
+        Update: {
+          created_at?: string
+          creator_id?: string
+          description?: string | null
+          id?: string
+          is_published?: boolean
+          price_bread?: number
+          thumbnail_url?: string | null
+          title?: string
+          unlocks_count?: number
+          updated_at?: string
+          video_path?: string
+        }
+        Relationships: []
+      }
       wallet_transactions: {
         Row: {
           amount: number
@@ -493,6 +567,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      unlock_vr_video: { Args: { p_video_id: string }; Returns: Json }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
