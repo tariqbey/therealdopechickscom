@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import {
   Users, DollarSign, Image, TrendingUp, Settings, LogOut,
-  BarChart3, Shield, Eye, Home, Video, Sparkles, Crown, Menu, X
+  BarChart3, Shield, Eye, Home, Video, Sparkles, Crown, Menu, X, Headset
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/logo.png";
@@ -15,6 +15,7 @@ import AdminContentTab from "@/components/admin/AdminContentTab";
 import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
 import AdminSecurityTab from "@/components/admin/AdminSecurityTab";
 import AdminFeaturedTab from "@/components/admin/AdminFeaturedTab";
+import AdminVRTab from "@/components/admin/AdminVRTab";
 
 interface Stats {
   totalUsers: number;
@@ -106,6 +107,7 @@ const AdminDashboard = () => {
     { id: "overview", label: "Overview", icon: BarChart3 },
     { id: "users", label: "Users", icon: Users },
     { id: "featured", label: "Featured", icon: Crown },
+    { id: "vr", label: "VR Videos", icon: Headset },
     { id: "content", label: "Monetization", icon: DollarSign },
     { id: "analytics", label: "Analytics", icon: TrendingUp },
     { id: "security", label: "Security", icon: Shield },
@@ -182,6 +184,7 @@ const AdminDashboard = () => {
                 {activeTab === "overview" && "Dashboard Overview"}
                 {activeTab === "users" && "User Management"}
                 {activeTab === "featured" && "Featured Creators"}
+                {activeTab === "vr" && "VR Videos"}
                 {activeTab === "content" && "API Monetization"}
                 {activeTab === "analytics" && "Analytics"}
                 {activeTab === "security" && "Security"}
@@ -260,6 +263,8 @@ const AdminDashboard = () => {
           )}
 
           {activeTab === "featured" && <AdminFeaturedTab />}
+
+          {activeTab === "vr" && <AdminVRTab />}
 
           {activeTab === "content" && <AdminContentTab />}
 

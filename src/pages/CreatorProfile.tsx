@@ -14,6 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import CreatorContentManager from "@/components/CreatorContentManager";
 import CreatorProfileEditor from "@/components/CreatorProfileEditor";
 import PostEditModal from "@/components/PostEditModal";
+import VRVideoGallery from "@/components/VRVideoGallery";
+import VRVideoManager from "@/components/VRVideoManager";
 
 interface CreatorData {
   user_id: string;
@@ -360,6 +362,11 @@ const CreatorProfile = () => {
           </div>
         </motion.div>
 
+        {/* VR Experiences */}
+        {creator && (
+          <VRVideoGallery creatorId={creator.user_id} isOwnerOrAdmin={!!canManagePosts} />
+        )}
+
         {/* Content Section */}
         <div className="mb-12">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -390,7 +397,10 @@ const CreatorProfile = () => {
               <CreatorProfileEditor onSaved={() => { setActiveTab("all"); if (creator) { /* reload */ window.location.reload(); } }} />
             </div>
           ) : activeTab === "manage" && isOwnProfile ? (
-            <CreatorContentManager posts={posts} onRefresh={() => creator && loadPosts(creator.user_id)} />
+            <div className="space-y-8">
+              <CreatorContentManager posts={posts} onRefresh={() => creator && loadPosts(creator.user_id)} />
+              <VRVideoManager />
+            </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {filtered.length === 0 ? (

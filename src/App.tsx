@@ -12,6 +12,7 @@ import ProfileSettings from "./pages/ProfileSettings";
 import Settings from "./pages/Settings";
 import GenerationHistory from "./pages/GenerationHistory";
 import VideoPlayerPage from "./pages/VideoPlayerPage";
+import VRVideoPage from "./pages/VRVideoPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import Install from "./pages/Install";
 import AvatarBuilder from "./pages/AvatarBuilder";
@@ -40,6 +41,7 @@ const App = () => (
             <Route path="/settings/tiers" element={<CreatorTiers />} />
             <Route path="/history" element={<GenerationHistory />} />
             <Route path="/player" element={<VideoPlayerPage />} />
+            <Route path="/vr/:videoId" element={<VRVideoPage />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/install" element={<Install />} />
             <Route path="/avatar-builder" element={<AvatarBuilder />} />
