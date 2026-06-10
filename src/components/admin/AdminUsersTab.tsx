@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { startImpersonation } from "@/lib/impersonation";
 import { motion } from "framer-motion";
 import { Eye, Shield, UserCheck, UserX, Search, LogIn, Loader2 } from "lucide-react";
@@ -37,9 +38,12 @@ interface AdminUsersTabProps {
 
 const AdminUsersTab = ({ users, onRefresh }: AdminUsersTabProps) => {
   const navigate = useNavigate();
+  const { user: currentUser } = useAuth();
   const [search, setSearch] = useState("");
   const [roles, setRoles] = useState<Record<string, string>>({});
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+
+  const otherUserCount = users.filter((u) => u.user_id !== currentUser?.id).length;
 
   const signInAs = async (u: UserRow) => {
     setLoadingAction(u.user_id + "-impersonate");
@@ -80,9 +84,9 @@ const AdminUsersTab = ({ users, onRefresh }: AdminUsersTabProps) => {
   };
 
   // Fetch roles on mount
-  useState(() => {
+  useEffect(() => {
     fetchRoles();
-  });
+  }, []);
 
   const toggleCreator = async (userId: string, currentValue: boolean) => {
     setLoadingAction(userId + "-creator");
@@ -130,6 +134,17 @@ const AdminUsersTab = ({ users, onRefresh }: AdminUsersTabProps) => {
         </div>
         <span className="text-sm text-muted-foreground">{filteredUsers.length} users</span>
       </div>
+
+      {otherUserCount === 0 && (
+        <div className="rounded-xl border border-dashed border-border bg-muted/30 p-4 text-sm text-muted-foreground flex items-center gap-2">
+          <LogIn className="h-4 w-4 shrink-0" />
+          <span>
+            You're the only account so far, so there's no one to "Sign in as" yet.
+            Create a test fan account (sign up with another email in a private window),
+            then come back here to view the app as that user.
+          </span>
+        </div>
+      )}
 
       <div className="rounded-xl bg-gradient-card border border-border p-6">
         <div className="overflow-x-auto">
@@ -185,20 +200,24 @@ const AdminUsersTab = ({ users, onRefresh }: AdminUsersTabProps) => {
                     {new Date(u.created_at).toLocaleDateString()}
                   </td>
                   <td className="py-3">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() => signInAs(u)}
-                      disabled={loadingAction === u.user_id + "-impersonate" || roles[u.user_id] === "admin"}
-                      title={roles[u.user_id] === "admin" ? "Can't impersonate another admin" : "Sign in as this user"}
-                    >
-                      {loadingAction === u.user_id + "-impersonate" ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <><LogIn className="h-3 w-3 mr-1" /> Sign in as</>
-                      )}
-                    </Button>
+                    {u.user_id === currentUser?.id ? (
+                      <span className="text-xs text-muted-foreground italic">This is you</span>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => signInAs(u)}
+                        disabled={loadingAction === u.user_id + "-impersonate" || roles[u.user_id] === "admin"}
+                        title={roles[u.user_id] === "admin" ? "Can't impersonate another admin" : "Sign in as this user"}
+                      >
+                        {loadingAction === u.user_id + "-impersonate" ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <><LogIn className="h-3 w-3 mr-1" /> Sign in as</>
+                        )}
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}
