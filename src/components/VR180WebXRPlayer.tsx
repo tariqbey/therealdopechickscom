@@ -40,24 +40,15 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
       return;
     }
 
-    const queryIndex = src.indexOf("?");
-    const signedQuery = queryIndex >= 0 ? src.slice(queryIndex + 1) : "";
-
-    // Safari plays HLS natively
+    // Bunny's path-based directory token sits in a path prefix, so every
+    // relative sub-playlist/segment URL inherits it — no per-request signing.
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = src;
+      video.src = src; // Safari plays HLS natively
       return;
     }
 
     if (Hls.isSupported()) {
-      const hls = new Hls({
-        xhrSetup: (xhr, url) => {
-          // Ensure the signed token rides on segment + sub-playlist requests
-          if (signedQuery && !url.includes("token=")) {
-            xhr.open("GET", url + (url.includes("?") ? "&" : "?") + signedQuery, true);
-          }
-        },
-      });
+      const hls = new Hls();
       hls.loadSource(src);
       hls.attachMedia(video);
       return () => hls.destroy();

@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHmac } from "node:crypto";
 
 /**
  * Returns a SIGNED Bunny Stream HLS URL — but only after confirming, through
@@ -16,15 +16,27 @@ const SUPABASE_ANON = process.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 const CDN_HOST = process.env.BUNNY_STREAM_CDN_HOST as string;
 const TOKEN_KEY = process.env.BUNNY_STREAM_TOKEN_KEY as string;
 
-function signDirectory(guid: string, expires: number) {
+// Bunny CDN Token Authentication v2 (HMAC-SHA256), path-based DIRECTORY token.
+// The token sits in a path PREFIX, so every relative HLS sub-playlist/segment
+// request under /{guid}/ inherits it automatically. Mirrors Bunny's official
+// reference SignUrl(isDirectory=true).
+function signedPlaylistUrl(guid: string, ttlSeconds: number) {
   const tokenPath = `/${guid}/`;
-  const hash = createHash("sha256")
-    .update(TOKEN_KEY + tokenPath + expires)
-    .digest("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=/g, "");
-  return `token=${hash}&expires=${expires}&token_path=${encodeURIComponent(tokenPath)}`;
+  const path = `/${guid}/playlist.m3u8`;
+  const expires = Math.floor(Date.now() / 1000) + ttlSeconds;
+
+  const signingData = `token_path=${tokenPath}`;
+  const urlData = `token_path=${encodeURIComponent(tokenPath)}`;
+  const message = tokenPath + expires + signingData; // signaturePath + expires + signingData + userIp("")
+
+  const token =
+    "HS256-" +
+    createHmac("sha256", TOKEN_KEY).update(message).digest("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=/g, "");
+
+  return `https://${CDN_HOST}/bcdn_token=${token}&${urlData}&expires=${expires}${path}`;
 }
 
 export default async function handler(req: any, res: any) {
@@ -49,11 +61,8 @@ export default async function handler(req: any, res: any) {
       return res.status(403).json({ error: "locked" });
     }
 
-    const expires = Math.floor(Date.now() / 1000) + 6 * 60 * 60; // 6 hours
-    const query = signDirectory(guid, expires);
-    const playlistUrl = `https://${CDN_HOST}/${guid}/playlist.m3u8?${query}`;
-
-    return res.status(200).json({ playlistUrl, query });
+    const playlistUrl = signedPlaylistUrl(guid, 6 * 60 * 60); // 6 hours
+    return res.status(200).json({ playlistUrl });
   } catch (err) {
     return res.status(400).json({ error: (err as Error).message });
   }
