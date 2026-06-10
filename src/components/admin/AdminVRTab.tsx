@@ -80,7 +80,13 @@ const AdminVRTab = () => {
 
   const handleDelete = async () => {
     if (!deleting) return;
-    await supabase.storage.from("vr-videos").remove([deleting.video_path]);
+    // Admin owns the cleanup via the API route (verified by their token); row
+    // delete cascades to vr_video_sources.
+    fetch("/api/vr-delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId: deleting.id, token: (await supabase.auth.getSession()).data.session?.access_token }),
+    }).catch(() => {});
     const { error } = await supabase.from("vr_videos" as any).delete().eq("id", deleting.id);
     if (error) {
       toast({ title: "Delete failed", description: error.message, variant: "destructive" });

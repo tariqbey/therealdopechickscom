@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { upload } from "@vercel/blob/client";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,7 @@ export interface VRVideo {
   creator_id: string;
   title: string;
   description: string | null;
-  video_path: string;
+  video_path: string | null;
   thumbnail_url: string | null;
   price_bread: number;
   is_published: boolean;
@@ -25,7 +26,7 @@ export interface VRVideo {
   created_at: string;
 }
 
-const MAX_VIDEO_MB = 500;
+const MAX_VIDEO_MB = 2048; // 2 GB — videos go to Vercel Blob, not Supabase
 
 const VRVideoManager = () => {
   const { user } = useAuth();
@@ -68,18 +69,24 @@ const VRVideoManager = () => {
     const price = Math.max(0, parseInt(priceBread, 10) || 0);
 
     setUploading(true);
-    setUploadPct(5);
+    setUploadPct(2);
     try {
-      // 1. Upload video to the PRIVATE vr-videos bucket
-      const ext = videoFile.name.split(".").pop() || "mp4";
-      const videoPath = `${user.id}/${Date.now()}.${ext}`;
-      const { error: videoErr } = await supabase.storage
-        .from("vr-videos")
-        .upload(videoPath, videoFile, { upsert: false });
-      if (videoErr) throw videoErr;
-      setUploadPct(70);
+      // Need the Supabase session token so the upload API can verify the creator
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Session expired — sign in again");
 
-      // 2. Upload thumbnail to the public vr-thumbnails bucket
+      // 1. Upload the (large) VR video straight to Vercel Blob, multipart.
+      const ext = videoFile.name.split(".").pop() || "mp4";
+      const blob = await upload(`vr/${user.id}/${Date.now()}.${ext}`, videoFile, {
+        access: "public",
+        handleUploadUrl: "/api/vr-upload",
+        clientPayload: session.access_token,
+        multipart: true,
+        onUploadProgress: (p) => setUploadPct(Math.round(p.percentage * 0.85)),
+      });
+      setUploadPct(88);
+
+      // 2. Thumbnail stays in Supabase (small, public)
       let thumbnailUrl: string | null = null;
       if (thumbFile) {
         const thumbExt = thumbFile.name.split(".").pop() || "jpg";
@@ -90,21 +97,29 @@ const VRVideoManager = () => {
         if (thumbErr) throw thumbErr;
         thumbnailUrl = supabase.storage.from("vr-thumbnails").getPublicUrl(thumbPath).data.publicUrl;
       }
-      setUploadPct(90);
+      setUploadPct(94);
 
-      // 3. Create the record
-      const { error: insertErr } = await supabase
+      // 3. Create the metadata row, then store the Blob URL in the locked
+      //    sources table (only readable via the paywalled get_vr_video_url RPC).
+      const { data: inserted, error: insertErr } = await supabase
         .from("vr_videos" as any)
         .insert({
           creator_id: user.id,
           title: title.trim(),
           description: description.trim() || null,
-          video_path: videoPath,
+          video_path: null,
           thumbnail_url: thumbnailUrl,
           price_bread: price,
           is_published: true,
-        } as any);
+        } as any)
+        .select("id")
+        .single();
       if (insertErr) throw insertErr;
+
+      const { error: srcErr } = await supabase
+        .from("vr_video_sources" as any)
+        .insert({ video_id: (inserted as any).id, blob_url: blob.url } as any);
+      if (srcErr) throw srcErr;
 
       toast({ title: "VR video published! 🥽", description: price > 0 ? `Fans unlock it for ${price} BREAD.` : "Free for all fans." });
       setTitle("");
@@ -146,7 +161,13 @@ const VRVideoManager = () => {
 
   const handleDelete = async () => {
     if (!deleting) return;
-    await supabase.storage.from("vr-videos").remove([deleting.video_path]);
+    // Row delete cascades to vr_video_sources. The Blob file is cleaned up
+    // server-side via the /api/vr-delete route.
+    fetch("/api/vr-delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId: deleting.id, token: (await supabase.auth.getSession()).data.session?.access_token }),
+    }).catch(() => {});
     const { error } = await supabase.from("vr_videos" as any).delete().eq("id", deleting.id);
     if (error) {
       toast({ title: "Delete failed", description: error.message, variant: "destructive" });

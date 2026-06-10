@@ -37,17 +37,17 @@ const VRVideoPage = () => {
         .maybeSingle();
       setCreatorName(profile?.display_name || "Creator");
 
-      // The storage RLS policy is the real gate: signing only succeeds for
-      // the owner, admins, free videos, or fans who unlocked it.
-      const { data: signed, error } = await supabase.storage
-        .from("vr-videos")
-        .createSignedUrl(v.video_path, 60 * 60 * 4); // 4 hours
+      // The paywall gate: get_vr_video_url returns the Blob URL only for the
+      // owner, admins, free videos, or fans who unlocked it — NULL otherwise.
+      const { data: url, error } = await supabase.rpc("get_vr_video_url" as any, {
+        p_video_id: v.id,
+      } as any);
 
-      if (error || !signed?.signedUrl) {
+      if (error || !url) {
         setState("locked");
         return;
       }
-      setSignedUrl(signed.signedUrl);
+      setSignedUrl(url as string);
       setState("ready");
     };
     load();

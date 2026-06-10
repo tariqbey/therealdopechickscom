@@ -25,3 +25,4 @@ dist-ssr
 .supabase-db-password.txt
 supabase/.temp
 .vercel
+.env*
