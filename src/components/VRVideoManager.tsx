@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { upload } from "@vercel/blob/client";
+import * as tus from "tus-js-client";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -75,15 +75,35 @@ const VRVideoManager = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Session expired — sign in again");
 
-      // 1. Upload the (large) VR video straight to Vercel Blob, multipart.
-      const ext = videoFile.name.split(".").pop() || "mp4";
-      const blob = await upload(`vr/${user.id}/${Date.now()}.${ext}`, videoFile, {
-        access: "public",
-        handleUploadUrl: "/api/vr-upload",
-        clientPayload: session.access_token,
-        multipart: true,
-        onUploadProgress: (p) => setUploadPct(Math.round(p.percentage * 0.85)),
+      // 1. Ask our API to create the Bunny video + sign a resumable upload
+      const prepRes = await fetch("/api/vr-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: session.access_token, title: title.trim() }),
       });
+      const prep = await prepRes.json();
+      if (!prepRes.ok || prep.error) throw new Error(prep.error || "Upload prep failed");
+
+      // 2. Upload the (large) VR video straight to Bunny Stream via TUS (resumable).
+      //    Bunny auto-transcodes it to adaptive HLS once the bytes land.
+      await new Promise<void>((resolve, reject) => {
+        const uploader = new tus.Upload(videoFile, {
+          endpoint: prep.tusEndpoint,
+          retryDelays: [0, 3000, 6000, 12000],
+          headers: {
+            AuthorizationSignature: prep.signature,
+            AuthorizationExpire: String(prep.expiration),
+            VideoId: prep.videoId,
+            LibraryId: String(prep.libraryId),
+          },
+          metadata: { filetype: videoFile.type, title: title.trim() },
+          onError: reject,
+          onProgress: (sent, total) => setUploadPct(Math.round((sent / total) * 85)),
+          onSuccess: () => resolve(),
+        });
+        uploader.start();
+      });
+      const bunnyVideoId = prep.videoId as string;
       setUploadPct(88);
 
       // 2. Thumbnail stays in Supabase (small, public)
@@ -116,12 +136,14 @@ const VRVideoManager = () => {
         .single();
       if (insertErr) throw insertErr;
 
+      // Store the Bunny video GUID in the locked sources table (read only via
+      // the paywalled get_vr_video_url RPC).
       const { error: srcErr } = await supabase
         .from("vr_video_sources" as any)
-        .insert({ video_id: (inserted as any).id, blob_url: blob.url } as any);
+        .insert({ video_id: (inserted as any).id, blob_url: bunnyVideoId } as any);
       if (srcErr) throw srcErr;
 
-      toast({ title: "VR video published! 🥽", description: price > 0 ? `Fans unlock it for ${price} BREAD.` : "Free for all fans." });
+      toast({ title: "VR video published! 🥽", description: "Bunny is transcoding it now — playable in a minute. " + (price > 0 ? `Fans unlock for ${price} BREAD.` : "Free for all fans.") });
       setTitle("");
       setDescription("");
       setPriceBread("25");

@@ -37,17 +37,25 @@ const VRVideoPage = () => {
         .maybeSingle();
       setCreatorName(profile?.display_name || "Creator");
 
-      // The paywall gate: get_vr_video_url returns the Blob URL only for the
-      // owner, admins, free videos, or fans who unlocked it — NULL otherwise.
-      const { data: url, error } = await supabase.rpc("get_vr_video_url" as any, {
-        p_video_id: v.id,
-      } as any);
-
-      if (error || !url) {
+      // Get a SIGNED Bunny HLS URL from our API. It calls the paywalled
+      // get_vr_video_url RPC server-side (owner/admin/free/unlocked only),
+      // then signs the stream — returns 403 if this user isn't allowed.
+      const { data: { session } } = await supabase.auth.getSession();
+      const playRes = await fetch("/api/vr-playback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoId: v.id, token: session?.access_token }),
+      });
+      if (!playRes.ok) {
         setState("locked");
         return;
       }
-      setSignedUrl(url as string);
+      const play = await playRes.json();
+      if (!play?.playlistUrl) {
+        setState("locked");
+        return;
+      }
+      setSignedUrl(play.playlistUrl as string);
       setState("ready");
     };
     load();

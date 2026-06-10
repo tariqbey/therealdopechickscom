@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import Hls from "hls.js";
 import { VRButton } from "three/examples/jsm/webxr/VRButton.js";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -25,6 +26,43 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const wantPlayingRef = useRef(false);
+
+  // Load the source — adaptive HLS (Bunny .m3u8) via hls.js, or a plain MP4.
+  // For HLS, the signed token query on the playlist URL must ride along on
+  // every segment request too, so we append it in the loader.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !src) return;
+
+    const isHls = src.includes(".m3u8");
+    if (!isHls) {
+      video.src = src;
+      return;
+    }
+
+    const queryIndex = src.indexOf("?");
+    const signedQuery = queryIndex >= 0 ? src.slice(queryIndex + 1) : "";
+
+    // Safari plays HLS natively
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = src;
+      return;
+    }
+
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        xhrSetup: (xhr, url) => {
+          // Ensure the signed token rides on segment + sub-playlist requests
+          if (signedQuery && !url.includes("token=")) {
+            xhr.open("GET", url + (url.includes("?") ? "&" : "?") + signedQuery, true);
+          }
+        },
+      });
+      hls.loadSource(src);
+      hls.attachMedia(video);
+      return () => hls.destroy();
+    }
+  }, [src]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -545,7 +583,6 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
     <div className="relative w-full h-full bg-black">
       <video
         ref={videoRef}
-        src={src}
         poster={poster}
         crossOrigin="anonymous"
         playsInline
