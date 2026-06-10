@@ -73,25 +73,19 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      // Upsert role
-      const { data: existing } = await adminClient
+      // Set THE role. A user can legitimately have multiple role rows
+      // (UNIQUE(user_id, role)), so the old maybeSingle() threw whenever more
+      // than one existed — which is exactly the admin's own admin+user case.
+      // Replace all of the user's roles with the single selected one.
+      const { error: delErr } = await adminClient
         .from("user_roles")
-        .select("id")
-        .eq("user_id", user_id)
-        .maybeSingle();
-
-      if (existing) {
-        const { error } = await adminClient
-          .from("user_roles")
-          .update({ role })
-          .eq("user_id", user_id);
-        if (error) throw error;
-      } else {
-        const { error } = await adminClient
-          .from("user_roles")
-          .insert({ user_id, role });
-        if (error) throw error;
-      }
+        .delete()
+        .eq("user_id", user_id);
+      if (delErr) throw delErr;
+      const { error: insErr } = await adminClient
+        .from("user_roles")
+        .insert({ user_id, role });
+      if (insErr) throw insErr;
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
