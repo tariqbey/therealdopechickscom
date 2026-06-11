@@ -25,6 +25,7 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
   const [buffering, setBuffering] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [quality, setQuality] = useState("");
   const wantPlayingRef = useRef(false);
 
   // Load the source — adaptive HLS (Bunny .m3u8) via hls.js, or a plain MP4.
@@ -50,18 +51,25 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
     if (Hls.isSupported()) {
       // The <video> is hidden (it only feeds the 3D texture), so its size is ~0.
       // capLevelToPlayerSize:false stops hls.js from picking the lowest rendition
-      // for a "tiny" element — critical for VR, which needs the full 4K stream.
+      // for a "tiny" element. VR needs maximum sharpness, so we PIN the highest
+      // rendition (4K) rather than let ABR settle on a lower one.
       const hls = new Hls({
         capLevelToPlayerSize: false,
-        startLevel: -1,
-        maxBufferLength: 30,
-        abrEwmaDefaultEstimate: 8_000_000, // start optimistic so it opens at high quality
+        maxBufferLength: 20,
+        abrEwmaDefaultEstimate: 50_000_000,
       });
       hls.loadSource(src);
       hls.attachMedia(video);
-      // Prefer the highest rendition on load; ABR can still drop if bandwidth demands.
       hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
-        if (data.levels?.length) hls.nextLevel = data.levels.length - 1;
+        // Pin to the top quality level (disables auto-downgrade).
+        if (data.levels?.length) {
+          hls.startLevel = data.levels.length - 1;
+          hls.currentLevel = data.levels.length - 1;
+        }
+      });
+      hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => {
+        const lvl = hls.levels[data.level];
+        if (lvl) setQuality(`${lvl.width}×${lvl.height}`);
       });
       return () => hls.destroy();
     }
@@ -594,6 +602,13 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
         className="hidden"
       />
       <div ref={containerRef} className="w-full h-full" />
+
+      {/* Live quality readout — confirms which rendition is actually streaming */}
+      {quality && (
+        <div className="absolute top-4 right-4 z-10 px-2.5 py-1 rounded-full bg-background/70 backdrop-blur border border-border text-[11px] font-mono text-foreground/90">
+          {quality}
+        </div>
+      )}
 
       {/* Desktop / mobile DOM controls */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-2 rounded-full bg-background/70 backdrop-blur border border-border z-10 w-[min(90%,560px)]">
