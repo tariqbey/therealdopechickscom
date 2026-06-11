@@ -48,9 +48,21 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
     }
 
     if (Hls.isSupported()) {
-      const hls = new Hls();
+      // The <video> is hidden (it only feeds the 3D texture), so its size is ~0.
+      // capLevelToPlayerSize:false stops hls.js from picking the lowest rendition
+      // for a "tiny" element — critical for VR, which needs the full 4K stream.
+      const hls = new Hls({
+        capLevelToPlayerSize: false,
+        startLevel: -1,
+        maxBufferLength: 30,
+        abrEwmaDefaultEstimate: 8_000_000, // start optimistic so it opens at high quality
+      });
       hls.loadSource(src);
       hls.attachMedia(video);
+      // Prefer the highest rendition on load; ABR can still drop if bandwidth demands.
+      hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
+        if (data.levels?.length) hls.nextLevel = data.levels.length - 1;
+      });
       return () => hls.destroy();
     }
   }, [src]);
