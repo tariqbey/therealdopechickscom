@@ -6,7 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Send, ArrowLeft, Loader2, Sparkles, MessageCircle } from "lucide-react";
+import { Send, ArrowLeft, Loader2, Sparkles, MessageCircle, Video, Camera, Phone } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import VideoMessageRecorder from "@/components/VideoMessageRecorder";
+import VideoMessageBubble from "@/components/VideoMessageBubble";
+import VideoCallRequestDialog from "@/components/VideoCallRequestDialog";
+import { fetchCallProfile, type CallProfile } from "@/lib/videoCalls";
 
 interface Message {
   id: string;
@@ -17,6 +22,9 @@ interface Message {
   is_ai_reply: boolean;
   read: boolean;
   created_at: string;
+  media_url?: string | null;
+  media_type?: string | null;
+  call_id?: string | null;
 }
 
 interface ConversationPreview {
@@ -42,7 +50,19 @@ const Messages = () => {
   const [sending, setSending] = useState(false);
   const [loadingConvos, setLoadingConvos] = useState(true);
   const [otherUser, setOtherUser] = useState<{ name: string; avatar: string | null; id: string } | null>(null);
+  const [otherProfile, setOtherProfile] = useState<CallProfile | null>(null);
+  const [recorderOpen, setRecorderOpen] = useState(false);
+  const [callDialogOpen, setCallDialogOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
+  // Full profile of the other party (creator call/video-message settings)
+  useEffect(() => {
+    if (!otherUser?.id) { setOtherProfile(null); return; }
+    let alive = true;
+    fetchCallProfile(otherUser.id).then((p) => { if (alive) setOtherProfile(p); });
+    return () => { alive = false; };
+  }, [otherUser?.id]);
 
   useEffect(() => {
     if (!user) { navigate("/auth"); return; }
@@ -176,6 +196,36 @@ const Messages = () => {
     setSending(false);
   };
 
+  const sendVideoMessage = async (blob: Blob, mimeType: string, durationSeconds: number) => {
+    if (!user || !activeConversation || !otherUser) return;
+    const ext = mimeType.includes("mp4") ? "mp4" : "webm";
+    const path = `${activeConversation}/${crypto.randomUUID()}.${ext}`;
+    const { error: upErr } = await supabase.storage
+      .from("message-media")
+      .upload(path, blob, { contentType: mimeType.split(";")[0], upsert: false });
+    if (upErr) {
+      toast({ title: "Upload failed", description: upErr.message, variant: "destructive" });
+      throw upErr;
+    }
+    const { error } = await supabase.from("messages").insert({
+      conversation_id: activeConversation,
+      sender_id: user.id,
+      receiver_id: otherUser.id,
+      content: `🎥 Video message (${durationSeconds}s)`,
+      media_url: path,
+      media_type: "video",
+    });
+    if (error) {
+      toast({ title: "Couldn't send", description: error.message, variant: "destructive" });
+      throw error;
+    }
+  };
+
+  const otherIsCreator = !!otherProfile?.is_creator;
+  const canRequestCall = otherIsCreator && !!otherProfile?.video_calls_enabled && otherProfile?.user_id !== user?.id;
+  // Creators can always send video messages; fans can when the creator allows it (default on).
+  const canSendVideo = !otherIsCreator || otherProfile?.video_messages_enabled !== false;
+
   if (!user) return null;
 
   return (
@@ -239,19 +289,47 @@ const Messages = () => {
                       ) : otherUser.name[0].toUpperCase()}
                     </div>
                     <span className="font-medium text-sm">{otherUser.name}</span>
+                    {canRequestCall && otherProfile && (
+                      <Button
+                        size="sm"
+                        onClick={() => setCallDialogOpen(true)}
+                        className="ml-auto rounded-full bg-gradient-purple text-primary-foreground font-bold h-8 px-3 text-xs"
+                        title="Start a paid video call"
+                      >
+                        <Video className="h-3.5 w-3.5 mr-1.5" />
+                        Video call
+                        {(otherProfile.video_call_price_bread ?? 0) > 0 && (
+                          <span className="ml-1.5 opacity-80">· {otherProfile.video_call_price_bread} BREAD</span>
+                        )}
+                      </Button>
+                    )}
                   </div>
 
                   <div className="flex-1 overflow-y-auto p-4 space-y-3">
                     {messages.map((msg) => {
                       const isMine = msg.sender_id === user.id;
+                      if (msg.media_type === "call") {
+                        return (
+                          <div key={msg.id} className="flex justify-center">
+                            <button
+                              onClick={() => msg.call_id && navigate(`/call/${msg.call_id}`)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/60 border border-border text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              <Phone className="h-3 w-3" /> {msg.content.replace(/^📞\s*/, "")}
+                            </button>
+                          </div>
+                        );
+                      }
                       return (
                         <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                          <div className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm ${
+                          <div className={`max-w-[75%] rounded-2xl text-sm ${msg.media_type === "video" ? "p-1" : "px-3 py-2"} ${
                             isMine
                               ? "bg-primary text-primary-foreground rounded-br-md"
                               : "bg-muted text-foreground rounded-bl-md"
                           }`}>
-                            {msg.content}
+                            {msg.media_type === "video" && msg.media_url ? (
+                              <VideoMessageBubble path={msg.media_url} />
+                            ) : msg.content}
                             {msg.is_ai_reply && (
                               <span className="flex items-center gap-1 text-[10px] opacity-60 mt-1">
                                 <Sparkles className="h-2.5 w-2.5" /> AI
@@ -269,6 +347,19 @@ const Messages = () => {
                       onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
                       className="flex gap-2"
                     >
+                      {canSendVideo && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setRecorderOpen(true)}
+                          className="shrink-0 border-border text-muted-foreground hover:text-primary hover:border-primary/50"
+                          title="Record a video message"
+                          aria-label="Record a video message"
+                        >
+                          <Camera className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Input
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
@@ -291,6 +382,11 @@ const Messages = () => {
           </div>
         </div>
       </div>
+
+      <VideoMessageRecorder open={recorderOpen} onOpenChange={setRecorderOpen} onSend={sendVideoMessage} />
+      {otherProfile && canRequestCall && (
+        <VideoCallRequestDialog open={callDialogOpen} onOpenChange={setCallDialogOpen} creator={otherProfile} />
+      )}
     </div>
   );
 };

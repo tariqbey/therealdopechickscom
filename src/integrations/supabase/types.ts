@@ -251,6 +251,9 @@ export type Database = {
           created_at: string
           id: string
           is_ai_reply: boolean
+          media_url: string | null
+          media_type: string | null
+          call_id: string | null
           read: boolean
           receiver_id: string
           sender_id: string
@@ -261,6 +264,9 @@ export type Database = {
           created_at?: string
           id?: string
           is_ai_reply?: boolean
+          media_url?: string | null
+          media_type?: string | null
+          call_id?: string | null
           read?: boolean
           receiver_id: string
           sender_id: string
@@ -271,6 +277,9 @@ export type Database = {
           created_at?: string
           id?: string
           is_ai_reply?: boolean
+          media_url?: string | null
+          media_type?: string | null
+          call_id?: string | null
           read?: boolean
           receiver_id?: string
           sender_id?: string
@@ -323,6 +332,10 @@ export type Database = {
           updated_at: string
           user_id: string
           zodiac_sign: string | null
+          video_calls_enabled: boolean
+          video_call_price_bread: number
+          video_call_minutes: number
+          video_messages_enabled: boolean
         }
         Insert: {
           age_verified?: boolean
@@ -351,6 +364,10 @@ export type Database = {
           updated_at?: string
           user_id: string
           zodiac_sign?: string | null
+          video_calls_enabled?: boolean
+          video_call_price_bread?: number
+          video_call_minutes?: number
+          video_messages_enabled?: boolean
         }
         Update: {
           age_verified?: boolean
@@ -379,6 +396,10 @@ export type Database = {
           updated_at?: string
           user_id?: string
           zodiac_sign?: string | null
+          video_calls_enabled?: boolean
+          video_call_price_bread?: number
+          video_call_minutes?: number
+          video_messages_enabled?: boolean
         }
         Relationships: []
       }

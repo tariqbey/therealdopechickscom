@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Headset, Loader2, Lock } from "lucide-react";
+import { Headset, Loader2, Lock } from "lucide-react";
 import VR180WebXRPlayer from "@/components/VR180WebXRPlayer";
 import type { VRVideo } from "@/components/VRVideoManager";
 
@@ -104,20 +104,15 @@ const VRVideoPage = () => {
 
   return (
     <div className="fixed inset-0 bg-black">
-      {signedUrl && <VR180WebXRPlayer src={signedUrl} poster={video?.thumbnail_url || undefined} />}
-
-      {/* Top bar */}
-      <div className="absolute top-0 left-0 right-0 z-20 flex items-center gap-3 p-4 bg-gradient-to-b from-background/80 to-transparent">
-        <Button size="icon" variant="ghost" className="rounded-full" onClick={backToCreator}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="min-w-0">
-          <h1 className="text-sm font-bold truncate flex items-center gap-2">
-            <Headset className="h-4 w-4 text-primary shrink-0" /> {video?.title}
-          </h1>
-          <p className="text-[11px] text-muted-foreground truncate">{creatorName} · VR180</p>
-        </div>
-      </div>
+      {signedUrl && (
+        <VR180WebXRPlayer
+          src={signedUrl}
+          poster={video?.thumbnail_url || undefined}
+          title={video?.title}
+          subtitle={`${creatorName} · VR180`}
+          onBack={backToCreator}
+        />
+      )}
     </div>
   );
 };

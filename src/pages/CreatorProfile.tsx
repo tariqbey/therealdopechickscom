@@ -16,6 +16,7 @@ import CreatorProfileEditor from "@/components/CreatorProfileEditor";
 import PostEditModal from "@/components/PostEditModal";
 import VRVideoGallery from "@/components/VRVideoGallery";
 import VRVideoManager from "@/components/VRVideoManager";
+import VideoCallRequestDialog from "@/components/VideoCallRequestDialog";
 
 interface CreatorData {
   user_id: string;
@@ -25,6 +26,10 @@ interface CreatorData {
   bio: string | null;
   is_creator: boolean;
   created_at: string;
+  video_calls_enabled?: boolean;
+  video_call_price_bread?: number;
+  video_call_minutes?: number;
+  video_messages_enabled?: boolean;
 }
 
 interface TierData {
@@ -74,6 +79,7 @@ const CreatorProfile = () => {
   const [loadingCreator, setLoadingCreator] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [editingPost, setEditingPost] = useState<CreatorPost | null>(null);
+  const [callDialogOpen, setCallDialogOpen] = useState(false);
   const { user, profile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -282,8 +288,23 @@ const CreatorProfile = () => {
                 <Button variant="outline" size="icon" className="rounded-full border-border/60 text-muted-foreground hover:text-foreground hover:border-destructive/40 transition-colors">
                   <Heart className="h-4 w-4" />
                 </Button>
+                {creator?.video_calls_enabled && !isOwnProfile && (
+                  <Button
+                    className="rounded-full bg-gradient-purple text-primary-foreground font-bold hover:opacity-90 px-5 glow-purple"
+                    onClick={() => (user ? setCallDialogOpen(true) : navigate("/auth"))}
+                    title={`${creator.video_call_minutes ?? 15}-minute video call`}
+                  >
+                    <Video className="h-4 w-4 mr-2" /> Video Call
+                    {(creator.video_call_price_bread ?? 0) > 0 && (
+                      <span className="ml-1.5 text-xs opacity-85">· {creator.video_call_price_bread} BREAD</span>
+                    )}
+                  </Button>
+                )}
                 <Button
-                  className="rounded-full bg-gradient-purple text-primary-foreground font-bold hover:opacity-90 px-5"
+                  variant={creator?.video_calls_enabled && !isOwnProfile ? "outline" : "default"}
+                  className={creator?.video_calls_enabled && !isOwnProfile
+                    ? "rounded-full border-primary/40 text-foreground hover:bg-primary/10 font-bold px-5"
+                    : "rounded-full bg-gradient-purple text-primary-foreground font-bold hover:opacity-90 px-5"}
                   onClick={() => navigate(`/messages?to=${creator?.user_id}`)}
                 >
                   <MessageCircle className="h-4 w-4 mr-2" /> Message
@@ -466,6 +487,20 @@ const CreatorProfile = () => {
           open={!!editingPost}
           onClose={() => setEditingPost(null)}
           onRefresh={() => creator && loadPosts(creator.user_id)}
+        />
+      )}
+
+      {creator?.video_calls_enabled && !isOwnProfile && (
+        <VideoCallRequestDialog
+          open={callDialogOpen}
+          onOpenChange={setCallDialogOpen}
+          creator={{
+            user_id: creator.user_id,
+            display_name: creator.display_name,
+            avatar_url: creator.avatar_url,
+            video_call_price_bread: creator.video_call_price_bread ?? 0,
+            video_call_minutes: creator.video_call_minutes ?? 15,
+          }}
         />
       )}
 

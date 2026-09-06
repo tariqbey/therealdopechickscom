@@ -19,9 +19,11 @@ import AvatarBuilder from "./pages/AvatarBuilder";
 import CreatorTiers from "./pages/CreatorTiers";
 import Messages from "./pages/Messages";
 import TransactionHistory from "./pages/TransactionHistory";
+import VideoCallPage from "./pages/VideoCallPage";
 import NotFound from "./pages/NotFound";
 import PWAInstallBanner from "./components/PWAInstallBanner";
 import ImpersonationBar from "./components/ImpersonationBar";
+import CallNotifications from "./components/CallNotifications";
 
 const queryClient = new QueryClient();
 
@@ -48,11 +50,13 @@ const App = () => (
             <Route path="/avatar-builder" element={<AvatarBuilder />} />
             <Route path="/messages" element={<Messages />} />
             <Route path="/transactions" element={<TransactionHistory />} />
+            <Route path="/call/:callId" element={<VideoCallPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
           <PWAInstallBanner />
           <ImpersonationBar />
+          <CallNotifications />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

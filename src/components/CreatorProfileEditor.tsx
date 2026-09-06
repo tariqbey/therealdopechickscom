@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Camera, Save, Loader2, Sparkles, ImageIcon, Plus, Trash2, DollarSign,
-  Crown, Eye, Wand2, MapPin, Briefcase, Heart, Ruler, User2,
+  Crown, Eye, Wand2, MapPin, Briefcase, Heart, Ruler, User2, Video, Clock, Camera as CameraIcon,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -67,6 +68,12 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
   const [location, setLocation] = useState("");
   const [zodiacSign, setZodiacSign] = useState("");
 
+  // Calls & video messages
+  const [videoCallsEnabled, setVideoCallsEnabled] = useState(false);
+  const [videoCallPrice, setVideoCallPrice] = useState(100);
+  const [videoCallMinutes, setVideoCallMinutes] = useState(15);
+  const [videoMessagesEnabled, setVideoMessagesEnabled] = useState(true);
+
   // State
   const [saving, setSaving] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
@@ -75,7 +82,7 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
   const [analyzingImage, setAnalyzingImage] = useState(false);
   const [tiers, setTiers] = useState<TierRow[]>([]);
   const [loadingTiers, setLoadingTiers] = useState(true);
-  const [activeSection, setActiveSection] = useState<"profile" | "details" | "tiers">("profile");
+  const [activeSection, setActiveSection] = useState<"profile" | "details" | "tiers" | "video">("profile");
 
   // Crop modal state
   const [cropModalOpen, setCropModalOpen] = useState(false);
@@ -88,7 +95,7 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
     const loadExtended = async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("height, build, complexion, eye_color, hair_color, ethnicity, profession, interests, likes, measurements, location, zodiac_sign" as any)
+        .select("height, build, complexion, eye_color, hair_color, ethnicity, profession, interests, likes, measurements, location, zodiac_sign, video_calls_enabled, video_call_price_bread, video_call_minutes, video_messages_enabled" as any)
         .eq("user_id", user.id)
         .maybeSingle();
       if (data) {
@@ -105,6 +112,10 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
         setMeasurements(d.measurements || "");
         setLocation(d.location || "");
         setZodiacSign(d.zodiac_sign || "");
+        setVideoCallsEnabled(!!d.video_calls_enabled);
+        setVideoCallPrice(typeof d.video_call_price_bread === "number" ? d.video_call_price_bread : 100);
+        setVideoCallMinutes(typeof d.video_call_minutes === "number" ? d.video_call_minutes : 15);
+        setVideoMessagesEnabled(d.video_messages_enabled !== false);
       }
     };
     loadExtended();
@@ -232,9 +243,13 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
     const interestsArr = interests.split(",").map((s) => s.trim()).filter(Boolean);
     const likesArr = likes.split(",").map((s) => s.trim()).filter(Boolean);
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({
+    const videoFields = {
+      video_calls_enabled: videoCallsEnabled,
+      video_call_price_bread: Math.max(0, Math.round(videoCallPrice) || 0),
+      video_call_minutes: Math.min(180, Math.max(1, Math.round(videoCallMinutes) || 15)),
+      video_messages_enabled: videoMessagesEnabled,
+    };
+    const baseFields = {
         display_name: displayName.trim(),
         bio: bio.trim(),
         avatar_url: avatarUrl || null,
@@ -251,8 +266,20 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
         measurements: measurements || null,
         location: location || null,
         zodiac_sign: zodiacSign || null,
-      } as any)
+    };
+
+    let { error } = await supabase
+      .from("profiles")
+      .update({ ...baseFields, ...videoFields } as any)
       .eq("user_id", user.id);
+
+    // If the calls/video columns aren't deployed yet, still save everything else.
+    if (error && /video_call|video_messages|column|schema cache/i.test(error.message)) {
+      ({ error } = await supabase.from("profiles").update(baseFields as any).eq("user_id", user.id));
+      if (!error) {
+        toast({ title: "Profile saved", description: "Video call settings couldn't be saved yet — the database update for calls hasn't been applied." });
+      }
+    }
 
     if (error) {
       toast({ title: "Save failed", description: error.message, variant: "destructive" });
@@ -296,6 +323,7 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
     { key: "profile" as const, label: "Profile", icon: User2 },
     { key: "details" as const, label: "Details & Stats", icon: Ruler },
     { key: "tiers" as const, label: "Subscription Tiers", icon: Crown },
+    { key: "video" as const, label: "Calls & Video", icon: Video },
   ];
 
   return (
@@ -635,7 +663,72 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
         </motion.div>
       )}
 
-      {/* Save Button (always visible) */}
+      {/* Calls & Video Section */}
+      {activeSection === "video" && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
+          <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Video className="h-4 w-4 text-primary" /> Paid video calls
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1 max-w-md">
+                  Fans pay BREAD up front to book a private, FaceTime-style call with you. You get pinged the moment a
+                  request comes in, accept or decline on the spot, and the call runs right here in the app.
+                </p>
+              </div>
+              <Switch checked={videoCallsEnabled} onCheckedChange={setVideoCallsEnabled} aria-label="Enable paid video calls" />
+            </div>
+
+            <div className={`grid grid-cols-2 gap-3 transition-opacity ${videoCallsEnabled ? "" : "opacity-50 pointer-events-none"}`}>
+              <div>
+                <Label className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign className="h-3 w-3" /> Price per call (BREAD)</Label>
+                <Input
+                  type="number" min={0} max={100000} step={5}
+                  value={videoCallPrice}
+                  onChange={(e) => setVideoCallPrice(Number(e.target.value))}
+                  className="bg-muted border-border mt-1"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  You keep 80% → <span className="text-gradient-gold font-semibold">{Math.floor(Math.max(0, videoCallPrice) * 0.8)} BREAD</span> per call. 0 = free.
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" /> Call length (minutes)</Label>
+                <Input
+                  type="number" min={1} max={180} step={5}
+                  value={videoCallMinutes}
+                  onChange={(e) => setVideoCallMinutes(Number(e.target.value))}
+                  className="bg-muted border-border mt-1"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">The call ends automatically when time is up.</p>
+              </div>
+            </div>
+
+            <div className="text-[11px] text-muted-foreground rounded-lg bg-background/60 border border-border p-3 space-y-1">
+              <div>• Fans are charged when they request; you're paid when the call ends.</div>
+              <div>• Declined, cancelled, expired (24h) or never-connected calls refund the fan automatically.</div>
+              <div>• Works on phones, tablets and desktop — no app install needed.</div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-muted/30 p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <CameraIcon className="h-4 w-4 text-primary" /> Video messages from fans
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1 max-w-md">
+                  Let fans record and send you short video messages (up to 60s) in chat. You can always send video messages
+                  to fans regardless of this setting.
+                </p>
+              </div>
+              <Switch checked={videoMessagesEnabled} onCheckedChange={setVideoMessagesEnabled} aria-label="Allow video messages from fans" />
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       <Button onClick={handleSave} disabled={saving} className="w-full bg-gradient-purple text-primary-foreground font-bold hover:opacity-90">
         <Save className="h-4 w-4 mr-1" /> {saving ? "Saving..." : "Save Everything"}
       </Button>

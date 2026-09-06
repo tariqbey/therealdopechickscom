@@ -1,80 +1,231 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import Hls from "hls.js";
-import { VRButton } from "three/examples/jsm/webxr/VRButton.js";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
-import { Play, Pause, RotateCcw, Loader2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  ArrowLeft,
+  Check,
+  Compass,
+  Crosshair,
+  Headset,
+  Loader2,
+  LogOut,
+  Maximize,
+  Minimize,
+  Pause,
+  Play,
+  RotateCcw,
+  RotateCw,
+  Settings2,
+  Volume1,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface VR180WebXRPlayerProps {
   src: string;
   poster?: string;
+  title?: string;
+  subtitle?: string;
+  onBack?: () => void;
 }
 
+type Level = { index: number; width: number; height: number; bitrate: number };
+
+interface PlayerApi {
+  play: () => void;
+  pause: () => void;
+  toggle: () => void;
+  seek: (t: number) => void;
+  skip: (dt: number) => void;
+  resetView: () => void;
+  zoom: (delta: number) => void;
+  setGyro: (on: boolean) => Promise<boolean>;
+  enterVR: () => Promise<void>;
+  exitVR: () => void;
+}
+
+const SKIP_SECONDS = 10;
+const HIDE_AFTER_MS = 3000;
+const VR_PANEL_HIDE_MS = 10000;
+const MIN_FOV = 40;
+const MAX_FOV = 100;
+const DEFAULT_FOV = 75;
+
+const fmtTime = (t: number) => {
+  if (!isFinite(t) || t < 0) t = 0;
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = Math.floor(t % 60);
+  return h > 0
+    ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+    : `${m}:${String(s).padStart(2, "0")}`;
+};
+
+const levelLabel = (l: Level) => {
+  const h = Math.min(l.width, l.height) >= 2160 || l.height >= 2160 ? "4K" : `${l.height}p`;
+  return h;
+};
+
 /**
- * True WebXR VR180 player: renders side-by-side stereo equirectangular video
- * as one hemisphere per eye. On a headset browser (Quest etc.) an "Enter VR"
- * button appears; inside VR there's a floating laser-pointer control panel
- * (play/pause, ±10s, seek, recenter, drag-to-move). On desktop/mobile it
- * falls back to drag-to-look with the left eye's view and DOM controls.
+ * VR180 player with a proper desktop/mobile UI and a WebXR mode.
+ *
+ * Flat mode (desktop / phone):
+ *   - drag to look, scroll or pinch to zoom, click to play/pause, double-click for fullscreen
+ *   - phone gyroscope look-around (opt-in via the compass button)
+ *   - auto-hiding controls: play, ±10s, volume, seek bar w/ buffered range + hover time,
+ *     quality picker (HLS renditions), reset view, Enter VR, fullscreen
+ *   - keyboard: space/k play, j/l or ←/→ ±10s, ↑/↓ volume, m mute, f fullscreen, r reset view
+ * VR mode (Quest etc.):
+ *   - floating laser-pointer panel: restart, −10, play/pause, +10, recenter, mute, exit VR, seek bar
+ *   - panel auto-hides after 10s while playing; trigger or grip brings it back
+ *   - A / X instantly recenters
  */
-const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
+const VR180WebXRPlayer = ({ src, poster, title, subtitle, onBack }: VR180WebXRPlayerProps) => {
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const seekRef = useRef<HTMLDivElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
+  const apiRef = useRef<PlayerApi | null>(null);
+  const wantPlayingRef = useRef(false);
+  const hideTimerRef = useRef<number | null>(null);
+  const menuOpenRef = useRef(false);
+  const seekDragRef = useRef(false);
+
   const [playing, setPlaying] = useState(false);
   const [buffering, setBuffering] = useState(false);
+  const [hasFrame, setHasFrame] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [quality, setQuality] = useState("");
-  const wantPlayingRef = useRef(false);
+  const [bufferedEnd, setBufferedEnd] = useState(0);
+  const [muted, setMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [levels, setLevels] = useState<Level[]>([]);
+  const [selectedLevel, setSelectedLevel] = useState<number>(-1); // -1 = auto
+  const [activeQuality, setActiveQuality] = useState("");
+  const [xrSupported, setXrSupported] = useState(false);
+  const [inXR, setInXR] = useState(false);
+  const [gyroAvailable, setGyroAvailable] = useState(false);
+  const [gyroOn, setGyroOn] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [hintVisible, setHintVisible] = useState(true);
+  const [hoverFrac, setHoverFrac] = useState<number | null>(null);
+  const [coarsePointer, setCoarsePointer] = useState(false);
 
-  // Load the source — adaptive HLS (Bunny .m3u8) via hls.js, or a plain MP4.
-  // For HLS, the signed token query on the playlist URL must ride along on
-  // every segment request too, so we append it in the loader.
+  // ---------- controls auto-hide ----------
+  const showControls = useCallback(() => {
+    setControlsVisible(true);
+    if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = window.setTimeout(() => {
+      if (wantPlayingRef.current && !menuOpenRef.current && !seekDragRef.current) {
+        setControlsVisible(false);
+        setHoverFrac(null);
+      }
+    }, HIDE_AFTER_MS);
+  }, []);
+
+  useEffect(() => {
+    showControls();
+    const t = window.setTimeout(() => setHintVisible(false), 4500);
+    return () => {
+      window.clearTimeout(t);
+      if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    };
+  }, [showControls]);
+
+  useEffect(() => {
+    if (!playing) setControlsVisible(true);
+    else showControls();
+  }, [playing, showControls]);
+
+  // ---------- capability detection ----------
+  useEffect(() => {
+    setCoarsePointer(window.matchMedia?.("(pointer: coarse)").matches ?? false);
+    setGyroAvailable(typeof DeviceOrientationEvent !== "undefined" && (window.matchMedia?.("(pointer: coarse)").matches ?? false));
+    const xr = (navigator as any).xr;
+    if (xr?.isSessionSupported) {
+      xr.isSessionSupported("immersive-vr").then((ok: boolean) => setXrSupported(!!ok)).catch(() => setXrSupported(false));
+    }
+    const onFs = () => setFullscreen(!!(document.fullscreenElement || (document as any).webkitFullscreenElement));
+    document.addEventListener("fullscreenchange", onFs);
+    document.addEventListener("webkitfullscreenchange", onFs);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFs);
+      document.removeEventListener("webkitfullscreenchange", onFs);
+    };
+  }, []);
+
+  // ---------- source loading (HLS via hls.js, native HLS on Safari, or plain MP4) ----------
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !src) return;
+    setLevels([]);
+    setActiveQuality("");
 
     const isHls = src.includes(".m3u8");
     if (!isHls) {
       video.src = src;
       return;
     }
-
-    // Bunny's path-based directory token sits in a path prefix, so every
-    // relative sub-playlist/segment URL inherits it — no per-request signing.
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = src; // Safari plays HLS natively
+      video.src = src; // Safari plays HLS natively (no manual rendition picker)
       return;
     }
-
     if (Hls.isSupported()) {
       // The <video> is hidden (it only feeds the 3D texture), so its size is ~0.
       // capLevelToPlayerSize:false stops hls.js from picking the lowest rendition
       // for a "tiny" element. VR needs maximum sharpness, so we PIN the highest
-      // rendition (4K) rather than let ABR settle on a lower one.
+      // rendition (4K) by default; the quality menu can drop it or switch to Auto.
       const hls = new Hls({
         capLevelToPlayerSize: false,
         maxBufferLength: 20,
         abrEwmaDefaultEstimate: 50_000_000,
       });
+      hlsRef.current = hls;
       hls.loadSource(src);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
-        // Pin to the top quality level (disables auto-downgrade).
-        if (data.levels?.length) {
-          hls.startLevel = data.levels.length - 1;
-          hls.currentLevel = data.levels.length - 1;
+        const list: Level[] = (data.levels || []).map((l, i) => ({
+          index: i, width: l.width, height: l.height, bitrate: l.bitrate,
+        }));
+        setLevels(list);
+        if (list.length) {
+          const top = list.length - 1;
+          hls.startLevel = top;
+          hls.currentLevel = top;
+          setSelectedLevel(top);
         }
       });
       hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => {
         const lvl = hls.levels[data.level];
-        if (lvl) setQuality(`${lvl.width}×${lvl.height}`);
+        if (lvl) setActiveQuality(`${lvl.width}×${lvl.height}`);
       });
-      return () => hls.destroy();
+      return () => {
+        hls.destroy();
+        hlsRef.current = null;
+      };
     }
   }, [src]);
 
+  const chooseLevel = (idx: number) => {
+    const hls = hlsRef.current;
+    if (!hls) return;
+    hls.currentLevel = idx; // -1 re-enables adaptive switching
+    setSelectedLevel(idx);
+  };
+
+  // ---------- three.js scene, XR, in-VR panel, flat-mode look controls ----------
   useEffect(() => {
     const container = containerRef.current;
     const video = videoRef.current;
@@ -86,16 +237,13 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.xr.enabled = true;
     renderer.xr.setReferenceSpaceType("local");
+    renderer.domElement.style.touchAction = "none";
     container.appendChild(renderer.domElement);
-
-    const vrButton = VRButton.createButton(renderer);
-    vrButton.style.bottom = "76px";
-    container.appendChild(vrButton);
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x000000);
     const camera = new THREE.PerspectiveCamera(
-      75, container.clientWidth / container.clientHeight, 0.05, 2000
+      DEFAULT_FOV, container.clientWidth / container.clientHeight, 0.05, 2000
     );
     camera.layers.enable(1); // non-VR view shows the left eye
 
@@ -125,11 +273,16 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
     const userPlay = () => { wantPlayingRef.current = true; video.play().catch(() => {}); };
     const userPause = () => { wantPlayingRef.current = false; video.pause(); };
     const userToggle = () => (wantPlayingRef.current ? userPause() : userPlay());
+    const seekTo = (t: number) => {
+      if (!video.duration) return;
+      video.currentTime = Math.max(0, Math.min(video.duration - 0.1, t));
+    };
+    const skipBy = (dt: number) => seekTo(video.currentTime + dt);
     const watchdog = window.setInterval(() => {
       if (wantPlayingRef.current && video.paused && !video.seeking) video.play().catch(() => {});
     }, 2000);
 
-    // --- recenter ---
+    // --- recenter (VR) ---
     const _dir = new THREE.Vector3();
     const _pos = new THREE.Vector3();
     let recenterCountdown = 0;
@@ -165,7 +318,14 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
     panel.rotation.order = "YXZ";
     panel.position.set(0, -0.5, -1.3);
     panel.rotation.set(-0.42, 0, 0);
+    panel.visible = false;
     scene.add(panel);
+    let lastPanelActivity = performance.now();
+    const showPanel = () => {
+      panel.visible = true;
+      lastPanelActivity = performance.now();
+      placePanelInFront();
+    };
 
     const interactives: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] = [];
 
@@ -190,15 +350,15 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
       ctx.closePath();
     };
 
-    const PW = 1.5, PH = 0.54;
+    const PW = 1.72, PH = 0.54;
     const bg = new THREE.Mesh(
       new THREE.PlaneGeometry(PW, PH),
       new THREE.MeshBasicMaterial({
-        map: canvasTexture(1024, 384, (ctx, w, h) => {
+        map: canvasTexture(1024, 320, (ctx, w, h) => {
           const g = ctx.createLinearGradient(0, 0, 0, h);
           g.addColorStop(0, "rgba(28,28,42,0.94)");
           g.addColorStop(1, "rgba(12,12,20,0.94)");
-          rounded(ctx, 4, 4, w - 8, h - 8, 48);
+          rounded(ctx, 4, 4, w - 8, h - 8, 44);
           ctx.fillStyle = g;
           ctx.fill();
           ctx.strokeStyle = "rgba(168,85,247,0.4)";
@@ -218,10 +378,10 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
           ctx.fillStyle = "rgba(255,255,255,0.07)";
           ctx.fill();
           ctx.fillStyle = "rgba(255,255,255,0.55)";
-          ctx.font = "600 38px sans-serif";
+          ctx.font = "600 36px sans-serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText("⠿   hold trigger here to move   ⠿", w / 2, h / 2 + 2);
+          ctx.fillText("⠿   hold trigger here to move  ·  grip hides panel   ⠿", w / 2, h / 2 + 2);
         }),
         transparent: true,
         color: 0xdddddd,
@@ -233,11 +393,13 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
     interactives.push(handle);
 
     type IconDraw = (ctx: CanvasRenderingContext2D, w: number, h: number) => void;
-    const iconTexture = (draw: IconDraw, hover: boolean) =>
+    const iconTexture = (draw: IconDraw, hover: boolean, accent = false) =>
       canvasTexture(256, 256, (ctx, w, h) => {
         ctx.beginPath();
         ctx.arc(w / 2, h / 2, 116, 0, Math.PI * 2);
-        ctx.fillStyle = hover ? "rgba(168,85,247,0.35)" : "rgba(255,255,255,0.09)";
+        ctx.fillStyle = hover
+          ? (accent ? "rgba(236,72,153,0.4)" : "rgba(168,85,247,0.35)")
+          : (accent ? "rgba(236,72,153,0.16)" : "rgba(255,255,255,0.09)");
         ctx.fill();
         ctx.strokeStyle = hover ? "rgba(200,150,255,0.9)" : "rgba(255,255,255,0.28)";
         ctx.lineWidth = 5;
@@ -276,10 +438,52 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
         ctx.stroke();
       }
     };
+    const speakerBody = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+      ctx.beginPath();
+      ctx.moveTo(w * 0.28, h * 0.42);
+      ctx.lineTo(w * 0.4, h * 0.42);
+      ctx.lineTo(w * 0.53, h * 0.3);
+      ctx.lineTo(w * 0.53, h * 0.7);
+      ctx.lineTo(w * 0.4, h * 0.58);
+      ctx.lineTo(w * 0.28, h * 0.58);
+      ctx.closePath();
+      ctx.fill();
+      ctx.lineWidth = 9;
+      ctx.lineCap = "round";
+    };
+    const soundIcon: IconDraw = (ctx, w, h) => {
+      speakerBody(ctx, w, h);
+      ctx.beginPath(); ctx.arc(w * 0.53, h * 0.5, w * 0.09, -Math.PI / 3, Math.PI / 3); ctx.stroke();
+      ctx.beginPath(); ctx.arc(w * 0.53, h * 0.5, w * 0.17, -Math.PI / 3, Math.PI / 3); ctx.stroke();
+    };
+    const mutedIcon: IconDraw = (ctx, w, h) => {
+      speakerBody(ctx, w, h);
+      ctx.beginPath();
+      ctx.moveTo(w * 0.6, h * 0.42); ctx.lineTo(w * 0.74, h * 0.58);
+      ctx.moveTo(w * 0.74, h * 0.42); ctx.lineTo(w * 0.6, h * 0.58);
+      ctx.stroke();
+    };
+    const exitIcon: IconDraw = (ctx, w, h) => {
+      ctx.lineWidth = 10;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      // door frame
+      ctx.beginPath();
+      ctx.moveTo(w * 0.5, h * 0.3);
+      ctx.lineTo(w * 0.32, h * 0.3);
+      ctx.lineTo(w * 0.32, h * 0.7);
+      ctx.lineTo(w * 0.5, h * 0.7);
+      ctx.stroke();
+      // arrow out
+      ctx.beginPath();
+      ctx.moveTo(w * 0.46, h * 0.5); ctx.lineTo(w * 0.74, h * 0.5);
+      ctx.moveTo(w * 0.64, h * 0.4); ctx.lineTo(w * 0.74, h * 0.5); ctx.lineTo(w * 0.64, h * 0.6);
+      ctx.stroke();
+    };
 
-    const makeIconButton = (draw: IconDraw, x: number, action: () => void, size = 0.13) => {
-      const normalTex = iconTexture(draw, false);
-      const hoverTex = iconTexture(draw, true);
+    const makeIconButton = (draw: IconDraw, x: number, action: () => void, size = 0.13, accent = false) => {
+      const normalTex = iconTexture(draw, false, accent);
+      const hoverTex = iconTexture(draw, true, accent);
       const mesh = new THREE.Mesh(
         new THREE.PlaneGeometry(size, size),
         new THREE.MeshBasicMaterial({ map: normalTex, transparent: true })
@@ -290,29 +494,43 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
       interactives.push(mesh);
       return mesh;
     };
+    const swapButtonIcon = (
+      mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>,
+      normalTex: THREE.Texture, hoverTex: THREE.Texture
+    ) => {
+      mesh.userData.normalTex = normalTex;
+      mesh.userData.hoverTex = hoverTex;
+      mesh.material.map = normalTex;
+      mesh.material.needsUpdate = true;
+    };
 
-    makeIconButton(textIcon("⟲", 88), -0.5, () => { video.currentTime = 0; userPlay(); });
-    makeIconButton(textIcon("−10", 58), -0.27, () => {
-      video.currentTime = Math.max(0, video.currentTime - 10);
-    });
+    makeIconButton(soundIcon, -0.72, () => { video.muted = !video.muted; }, 0.12);
+    const muteBtn = interactives[interactives.length - 1] as THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+    makeIconButton(textIcon("⟲", 88), -0.5, () => { seekTo(0); userPlay(); });
+    makeIconButton(textIcon("−10", 58), -0.27, () => skipBy(-SKIP_SECONDS));
     const playBtn = makeIconButton(playIcon, -0.02, userToggle, 0.17);
-    makeIconButton(textIcon("+10", 58), 0.23, () => {
-      if (video.duration) video.currentTime = Math.min(video.duration - 0.1, video.currentTime + 10);
-    });
+    makeIconButton(textIcon("+10", 58), 0.23, () => skipBy(SKIP_SECONDS));
     makeIconButton(recenterIcon, 0.46, startRecenterCountdown);
+    makeIconButton(exitIcon, 0.7, () => { renderer.xr.getSession()?.end().catch(() => {}); }, 0.12, true);
 
     const playTexes = {
       playN: iconTexture(playIcon, false), playH: iconTexture(playIcon, true),
       pauseN: iconTexture(pauseIcon, false), pauseH: iconTexture(pauseIcon, true),
     };
-    const refreshPlayButton = () => {
-      playBtn.userData.normalTex = video.paused ? playTexes.playN : playTexes.pauseN;
-      playBtn.userData.hoverTex = video.paused ? playTexes.playH : playTexes.pauseH;
-      playBtn.material.map = playBtn.userData.normalTex;
-      playBtn.material.needsUpdate = true;
+    const muteTexes = {
+      onN: iconTexture(soundIcon, false), onH: iconTexture(soundIcon, true),
+      offN: iconTexture(mutedIcon, false), offH: iconTexture(mutedIcon, true),
     };
+    const refreshPlayButton = () =>
+      video.paused
+        ? swapButtonIcon(playBtn, playTexes.playN, playTexes.playH)
+        : swapButtonIcon(playBtn, playTexes.pauseN, playTexes.pauseH);
+    const refreshMuteButton = () =>
+      video.muted
+        ? swapButtonIcon(muteBtn, muteTexes.offN, muteTexes.offH)
+        : swapButtonIcon(muteBtn, muteTexes.onN, muteTexes.onH);
 
-    const SEEK_W = 1.3;
+    const SEEK_W = PW - 0.2;
     const seekTrack = new THREE.Mesh(
       new THREE.PlaneGeometry(SEEK_W, 0.075),
       new THREE.MeshBasicMaterial({
@@ -367,12 +585,17 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
     timeMesh.position.set(0, 0.108, 0.005);
     panel.add(timeMesh);
 
-    const fmt = (t: number) => {
-      if (!isFinite(t)) return "0:00";
-      return `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
-    };
+    const dragState = new Map<THREE.Object3D, boolean>();
     const panelTicker = window.setInterval(() => {
       if (!panel.visible) return;
+      // auto-hide while playing and idle
+      if (
+        renderer.xr.isPresenting && wantPlayingRef.current && dragState.size === 0 &&
+        recenterCountdown === 0 && performance.now() - lastPanelActivity > VR_PANEL_HIDE_MS
+      ) {
+        panel.visible = false;
+        return;
+      }
       timeCtx.clearRect(0, 0, 512, 80);
       timeCtx.font = "600 42px sans-serif";
       timeCtx.textAlign = "center";
@@ -386,7 +609,7 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
         status = "⏳ Buffering…";
       } else {
         timeCtx.fillStyle = "rgba(255,255,255,0.85)";
-        status = `${fmt(video.currentTime)}  /  ${fmt(video.duration)}`;
+        status = `${fmtTime(video.currentTime)}  /  ${fmtTime(video.duration)}`;
       }
       timeCtx.fillText(status, 256, 42);
       timeTex.needsUpdate = true;
@@ -408,9 +631,9 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
       return panel.visible ? raycaster.intersectObjects(interactives, false) : [];
     };
 
-    const dragState = new Map<THREE.Object3D, boolean>();
     const onSelectStart = (controller: THREE.Object3D) => {
-      if (!panel.visible) { panel.visible = true; placePanelInFront(); return; }
+      if (!panel.visible) { showPanel(); return; }
+      lastPanelActivity = performance.now();
       const hits = intersectPanel(controller);
       if (!hits.length) return;
       const hit = hits[0];
@@ -419,7 +642,7 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
         controller.attach(panel);
         dragState.set(controller, true);
       } else if (ud.seekBar) {
-        if (video.duration && hit.uv) video.currentTime = hit.uv.x * video.duration;
+        if (video.duration && hit.uv) seekTo(hit.uv.x * video.duration);
       } else if (ud.action) {
         ud.action();
       }
@@ -428,6 +651,7 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
       if (dragState.get(controller)) {
         scene.attach(panel);
         dragState.delete(controller);
+        lastPanelActivity = performance.now();
       }
     };
 
@@ -437,8 +661,8 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
       c.addEventListener("selectstart", () => onSelectStart(c));
       c.addEventListener("selectend", () => onSelectEnd(c));
       c.addEventListener("squeezestart", () => {
-        panel.visible = !panel.visible;
-        if (panel.visible) placePanelInFront();
+        if (panel.visible) panel.visible = false;
+        else showPanel();
       });
       const rayGeo = new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -3),
@@ -457,12 +681,12 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
     const pollRecenterButtons = () => {
       const session = renderer.xr.getSession();
       if (!session) return;
-      for (const src of session.inputSources) {
-        const gp = src.gamepad;
+      for (const s of session.inputSources) {
+        const gp = s.gamepad;
         if (!gp || !gp.buttons[4]) continue;
         const pressed = gp.buttons[4].pressed; // A (right) / X (left)
-        if (pressed && !recenterBtnPrev.get(src)) recenter();
-        recenterBtnPrev.set(src, pressed);
+        if (pressed && !recenterBtnPrev.get(s)) recenter();
+        recenterBtnPrev.set(s, pressed);
       }
     };
 
@@ -479,6 +703,7 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
       for (const c of controllers) {
         const hits = intersectPanel(c);
         if (!hits.length) continue;
+        lastPanelActivity = performance.now();
         const obj = hits[0].object as (typeof interactives)[number];
         if (obj.userData.button) {
           obj.material.map = obj.userData.hoverTex;
@@ -490,88 +715,260 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
     };
 
     const onSessionStart = () => {
-      panel.visible = true;
+      setInXR(true);
+      showPanel();
       userPlay();
       window.setTimeout(placePanelInFront, 300);
     };
+    const onSessionEnd = () => {
+      setInXR(false);
+      panel.visible = false;
+      onResize();
+    };
     renderer.xr.addEventListener("sessionstart", onSessionStart);
+    renderer.xr.addEventListener("sessionend", onSessionEnd);
 
-    // --- desktop drag-to-look ---
-    let lon = 0, lat = 0, dragging = false, px = 0, py = 0;
+    const enterVR = async () => {
+      const xr = (navigator as any).xr;
+      if (!xr) return;
+      const session = await xr.requestSession("immersive-vr", {
+        optionalFeatures: ["local-floor", "bounded-floor", "layers"],
+      });
+      await renderer.xr.setSession(session);
+    };
+    const exitVR = () => { renderer.xr.getSession()?.end().catch(() => {}); };
+
+    // --- flat-mode look: drag, wheel/pinch zoom, optional gyroscope ---
+    const view = { lon: 0, lat: 0, fov: DEFAULT_FOV, gyro: false, hasGyroData: false };
+    const deviceQuat = new THREE.Quaternion();
+    const yawQuat = new THREE.Quaternion();
+    const _euler = new THREE.Euler();
+    const _q0 = new THREE.Quaternion();
+    const _q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // -90° about X
+    const _zee = new THREE.Vector3(0, 0, 1);
+    const _yAxis = new THREE.Vector3(0, 1, 0);
+    const _fwd = new THREE.Vector3();
+
+    const screenAngle = () => {
+      const a = (screen.orientation && typeof screen.orientation.angle === "number")
+        ? screen.orientation.angle
+        : (typeof (window as any).orientation === "number" ? (window as any).orientation : 0);
+      return THREE.MathUtils.degToRad(a);
+    };
+    const onDeviceOrientation = (e: DeviceOrientationEvent) => {
+      if (e.alpha == null || e.beta == null || e.gamma == null) return;
+      const alpha = THREE.MathUtils.degToRad(e.alpha);
+      const beta = THREE.MathUtils.degToRad(e.beta);
+      const gamma = THREE.MathUtils.degToRad(e.gamma);
+      _euler.set(beta, alpha, -gamma, "YXZ");
+      deviceQuat.setFromEuler(_euler);
+      deviceQuat.multiply(_q1);
+      deviceQuat.multiply(_q0.setFromAxisAngle(_zee, -screenAngle()));
+      view.hasGyroData = true;
+    };
+    const setGyro = async (on: boolean): Promise<boolean> => {
+      if (!on) {
+        window.removeEventListener("deviceorientation", onDeviceOrientation);
+        view.gyro = false;
+        view.hasGyroData = false;
+        setGyroOn(false);
+        return false;
+      }
+      const DOE = (window as any).DeviceOrientationEvent;
+      if (!DOE) return false;
+      try {
+        if (typeof DOE.requestPermission === "function") {
+          const res = await DOE.requestPermission();
+          if (res !== "granted") return false;
+        }
+      } catch {
+        return false;
+      }
+      window.addEventListener("deviceorientation", onDeviceOrientation);
+      view.gyro = true;
+      view.lon = 0;
+      view.lat = 0;
+      setGyroOn(true);
+      return true;
+    };
+    const resetView = () => {
+      view.fov = DEFAULT_FOV;
+      camera.fov = DEFAULT_FOV;
+      camera.updateProjectionMatrix();
+      if (view.gyro && view.hasGyroData) {
+        // make "wherever the phone points right now" the front of the video
+        _fwd.set(0, 0, -1).applyQuaternion(deviceQuat);
+        const yaw = Math.atan2(_fwd.x, -_fwd.z);
+        view.lon = -THREE.MathUtils.radToDeg(yaw);
+        view.lat = 0;
+      } else {
+        view.lon = 0;
+        view.lat = 0;
+      }
+    };
+    const zoom = (delta: number) => {
+      view.fov = Math.max(MIN_FOV, Math.min(MAX_FOV, view.fov + delta));
+      camera.fov = view.fov;
+      camera.updateProjectionMatrix();
+    };
+
     const el = renderer.domElement;
-    const onPointerDown = (e: PointerEvent) => { dragging = true; px = e.clientX; py = e.clientY; };
+    const pointers = new Map<number, { x: number; y: number }>();
+    let dragging = false, px = 0, py = 0, downX = 0, downY = 0, downAt = 0, moved = false;
+    let pinchDist = 0;
+    const onPointerDown = (e: PointerEvent) => {
+      setHintVisible(false);
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+        dragging = false;
+        return;
+      }
+      dragging = true; moved = false;
+      px = downX = e.clientX; py = downY = e.clientY; downAt = performance.now();
+      try { el.setPointerCapture(e.pointerId); } catch { /* noop */ }
+    };
     const onPointerMove = (e: PointerEvent) => {
+      if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinchDist > 0) zoom((pinchDist - d) * 0.15);
+        pinchDist = d;
+        return;
+      }
       if (!dragging) return;
-      lon -= (e.clientX - px) * 0.18;
-      lat += (e.clientY - py) * 0.18;
-      lat = Math.max(-85, Math.min(85, lat));
+      const dx = e.clientX - px, dy = e.clientY - py;
+      if (Math.hypot(e.clientX - downX, e.clientY - downY) > 8) moved = true;
+      const sens = 0.18 * (view.fov / DEFAULT_FOV);
+      view.lon -= dx * sens;
+      if (!view.gyro) {
+        view.lat += dy * sens;
+        view.lat = Math.max(-85, Math.min(85, view.lat));
+      }
       px = e.clientX; py = e.clientY;
     };
-    const onPointerUp = () => { dragging = false; };
+    const onPointerUp = (e: PointerEvent) => {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinchDist = 0;
+      if (!dragging) return;
+      dragging = false;
+      const quick = performance.now() - downAt < 350;
+      if (!moved && quick) {
+        if (e.pointerType === "mouse") userToggle();
+        else setControlsVisible((v) => { if (v && wantPlayingRef.current) return false; showControls(); return true; });
+      }
+    };
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      zoom(Math.sign(e.deltaY) * 4);
+    };
+    const onDblClick = () => { apiRef.current && toggleFullscreenRef.current(); };
     el.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
+    el.addEventListener("pointermove", onPointerMove);
+    el.addEventListener("pointerup", onPointerUp);
+    el.addEventListener("pointercancel", onPointerUp);
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("dblclick", onDblClick);
 
     // --- React state sync ---
+    const updateBuffered = () => {
+      const t = video.currentTime;
+      let end = 0;
+      for (let i = 0; i < video.buffered.length; i++) {
+        if (video.buffered.start(i) <= t + 0.5 && video.buffered.end(i) >= t) {
+          end = Math.max(end, video.buffered.end(i));
+        }
+      }
+      setBufferedEnd(end);
+    };
     const onPlay = () => { setPlaying(true); refreshPlayButton(); };
     const onPause = () => { setPlaying(false); refreshPlayButton(); };
     const onWaiting = () => setBuffering(true);
-    const onPlaying = () => setBuffering(false);
+    const onPlaying = () => { setBuffering(false); setHasFrame(true); };
+    const onLoadedData = () => setHasFrame(true);
     const onTime = () => {
       setProgress(video.currentTime);
       if (video.duration && isFinite(video.duration)) setDuration(video.duration);
+      updateBuffered();
     };
+    const onVolume = () => { setMuted(video.muted); setVolume(video.volume); refreshMuteButton(); };
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
     video.addEventListener("waiting", onWaiting);
     video.addEventListener("playing", onPlaying);
+    video.addEventListener("loadeddata", onLoadedData);
     video.addEventListener("timeupdate", onTime);
     video.addEventListener("durationchange", onTime);
+    video.addEventListener("progress", updateBuffered);
+    video.addEventListener("volumechange", onVolume);
+    onVolume();
 
     const onResize = () => {
+      if (renderer.xr.isPresenting) return;
       camera.aspect = container.clientWidth / container.clientHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(container.clientWidth, container.clientHeight);
     };
     window.addEventListener("resize", onResize);
+    const ro = new ResizeObserver(onResize);
+    ro.observe(container);
 
     renderer.setAnimationLoop(() => {
       if (!renderer.xr.isPresenting) {
-        const phi = THREE.MathUtils.degToRad(90 - lat);
-        const theta = THREE.MathUtils.degToRad(lon);
-        camera.lookAt(
-          Math.sin(phi) * Math.sin(theta),
-          Math.cos(phi),
-          -Math.sin(phi) * Math.cos(theta)
-        );
+        if (view.gyro && view.hasGyroData) {
+          yawQuat.setFromAxisAngle(_yAxis, -THREE.MathUtils.degToRad(view.lon));
+          camera.quaternion.copy(yawQuat).multiply(deviceQuat);
+        } else {
+          const phi = THREE.MathUtils.degToRad(90 - view.lat);
+          const theta = THREE.MathUtils.degToRad(view.lon);
+          camera.lookAt(
+            Math.sin(phi) * Math.sin(theta),
+            Math.cos(phi),
+            -Math.sin(phi) * Math.cos(theta)
+          );
+        }
       }
       pollRecenterButtons();
       updateHover();
       renderer.render(scene, camera);
     });
 
-    // expose play/pause/seek to the DOM controls
-    (container as any).__vrPlayer = { userPlay, userPause, userToggle };
+    apiRef.current = {
+      play: userPlay, pause: userPause, toggle: userToggle, seek: seekTo, skip: skipBy,
+      resetView, zoom, setGyro, enterVR, exitVR,
+    };
 
     return () => {
+      apiRef.current = null;
       wantPlayingRef.current = false;
       window.clearInterval(watchdog);
       window.clearInterval(panelTicker);
       if (countdownTimer) window.clearTimeout(countdownTimer);
       renderer.setAnimationLoop(null);
       renderer.xr.removeEventListener("sessionstart", onSessionStart);
+      renderer.xr.removeEventListener("sessionend", onSessionEnd);
       renderer.xr.getSession()?.end().catch(() => {});
+      window.removeEventListener("deviceorientation", onDeviceOrientation);
       video.pause();
       video.removeEventListener("play", onPlay);
       video.removeEventListener("pause", onPause);
       video.removeEventListener("waiting", onWaiting);
       video.removeEventListener("playing", onPlaying);
+      video.removeEventListener("loadeddata", onLoadedData);
       video.removeEventListener("timeupdate", onTime);
       video.removeEventListener("durationchange", onTime);
+      video.removeEventListener("progress", updateBuffered);
+      video.removeEventListener("volumechange", onVolume);
       el.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
+      el.removeEventListener("pointermove", onPointerMove);
+      el.removeEventListener("pointerup", onPointerUp);
+      el.removeEventListener("pointercancel", onPointerUp);
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("dblclick", onDblClick);
       window.removeEventListener("resize", onResize);
+      ro.disconnect();
       scene.traverse((o) => {
         const m = o as THREE.Mesh;
         if (m.geometry) m.geometry.dispose();
@@ -580,18 +977,94 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
       });
       texture.dispose();
       renderer.dispose();
-      vrButton.remove();
       renderer.domElement.remove();
     };
-  }, [src]);
+  }, [src, showControls]);
 
-  const fmt = (t: number) =>
-    `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+  // ---------- fullscreen ----------
+  const toggleFullscreen = useCallback(() => {
+    const el = wrapperRef.current as any;
+    const doc = document as any;
+    if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+      (doc.exitFullscreen || doc.webkitExitFullscreen)?.call(doc);
+    } else if (el) {
+      (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
+    }
+  }, []);
+  const toggleFullscreenRef = useRef(toggleFullscreen);
+  toggleFullscreenRef.current = toggleFullscreen;
+  const fullscreenAvailable =
+    typeof document !== "undefined" &&
+    !!((document as any).fullscreenEnabled || (document as any).webkitFullscreenEnabled);
 
-  const player = () => (containerRef.current as any)?.__vrPlayer;
+  // ---------- keyboard ----------
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const api = apiRef.current;
+      const video = videoRef.current;
+      if (!api || !video) return;
+      let handled = true;
+      switch (e.key) {
+        case " ": case "k": case "K": api.toggle(); break;
+        case "ArrowLeft": case "j": case "J": api.skip(-SKIP_SECONDS); break;
+        case "ArrowRight": case "l": case "L": api.skip(SKIP_SECONDS); break;
+        case "ArrowUp": video.muted = false; video.volume = Math.min(1, video.volume + 0.1); break;
+        case "ArrowDown": video.volume = Math.max(0, video.volume - 0.1); break;
+        case "m": case "M": video.muted = !video.muted; break;
+        case "f": case "F": toggleFullscreen(); break;
+        case "r": case "R": api.resetView(); break;
+        case "Home": api.seek(0); break;
+        default: handled = false;
+      }
+      if (handled) { e.preventDefault(); showControls(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showControls, toggleFullscreen]);
+
+  // ---------- seek bar ----------
+  const fracFromEvent = (e: React.PointerEvent | PointerEvent) => {
+    const el = seekRef.current;
+    if (!el) return 0;
+    const r = el.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+  };
+  const onSeekDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    seekDragRef.current = true;
+    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+    const f = fracFromEvent(e);
+    setHoverFrac(f);
+    apiRef.current?.seek(f * duration);
+  };
+  const onSeekMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const f = fracFromEvent(e);
+    setHoverFrac(f);
+    if (seekDragRef.current) apiRef.current?.seek(f * duration);
+    showControls();
+  };
+  const onSeekUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    seekDragRef.current = false;
+    try { (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId); } catch { /* noop */ }
+    if (e.pointerType !== "mouse") setHoverFrac(null);
+  };
+
+  const playedPct = duration ? (progress / duration) * 100 : 0;
+  const bufferedPct = duration ? Math.min(100, (bufferedEnd / duration) * 100) : 0;
+  const VolumeIcon = muted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
+  const overlayVisible = controlsVisible || !playing;
+  const selectedLabel =
+    selectedLevel === -1 ? "Auto" : (levels.find((l) => l.index === selectedLevel) ? levelLabel(levels.find((l) => l.index === selectedLevel)!) : "");
 
   return (
-    <div className="relative w-full h-full bg-black">
+    <div
+      ref={wrapperRef}
+      className={cn("relative w-full h-full bg-black select-none overflow-hidden", !overlayVisible && "cursor-none")}
+      onPointerMove={() => showControls()}
+      onPointerDown={() => showControls()}
+    >
       <video
         ref={videoRef}
         poster={poster}
@@ -601,55 +1074,212 @@ const VR180WebXRPlayer = ({ src, poster }: VR180WebXRPlayerProps) => {
         loop
         className="hidden"
       />
-      <div ref={containerRef} className="w-full h-full" />
+      <div ref={containerRef} className="absolute inset-0" />
 
-      {/* Live quality readout — confirms which rendition is actually streaming */}
-      {quality && (
-        <div className="absolute top-4 right-4 z-10 px-2.5 py-1 rounded-full bg-background/70 backdrop-blur border border-border text-[11px] font-mono text-foreground/90">
-          {quality}
+      {/* Poster until the first frame is decoded */}
+      {!hasFrame && poster && (
+        <img src={poster} alt="" className="absolute inset-0 w-full h-full object-cover opacity-50 pointer-events-none" />
+      )}
+
+      {/* Center state: big play button or buffering spinner */}
+      {!inXR && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          {buffering && playing ? (
+            <div className="h-16 w-16 rounded-full bg-black/50 backdrop-blur flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-white" />
+            </div>
+          ) : !playing ? (
+            <button
+              type="button"
+              onClick={() => apiRef.current?.play()}
+              className="pointer-events-auto h-20 w-20 rounded-full bg-gradient-purple glow-purple flex items-center justify-center text-primary-foreground hover:scale-105 active:scale-95 transition-transform"
+              aria-label="Play"
+            >
+              <Play className="h-9 w-9 ml-1" fill="currentColor" />
+            </button>
+          ) : null}
         </div>
       )}
 
-      {/* Desktop / mobile DOM controls */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-2 rounded-full bg-background/70 backdrop-blur border border-border z-10 w-[min(90%,560px)]">
-        <Button
-          size="icon"
-          variant="ghost"
-          className="shrink-0 rounded-full"
-          onClick={() => player()?.userToggle()}
-        >
-          {buffering ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : playing ? (
-            <Pause className="h-5 w-5" />
-          ) : (
-            <Play className="h-5 w-5" />
+      {/* First-load hint */}
+      <div
+        className={cn(
+          "absolute left-1/2 -translate-x-1/2 top-20 z-10 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur text-[11px] text-white/85 border border-white/10 pointer-events-none transition-opacity duration-500",
+          hintVisible && !inXR ? "opacity-100" : "opacity-0"
+        )}
+      >
+        {coarsePointer
+          ? (gyroAvailable ? "Drag to look around · pinch to zoom · tap the compass for motion look" : "Drag to look around · pinch to zoom")
+          : "Drag to look around · scroll to zoom · space to play"}
+      </div>
+
+      {/* Top bar */}
+      <div
+        className={cn(
+          "absolute top-0 left-0 right-0 z-20 flex items-center gap-3 p-3 md:p-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent transition-opacity duration-300",
+          overlayVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+        )}
+      >
+        {onBack && (
+          <Button size="icon" variant="ghost" className="rounded-full text-white hover:bg-white/10 hover:text-white shrink-0" onClick={onBack} aria-label="Back">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        )}
+        <div className="min-w-0 flex-1">
+          {title && (
+            <h1 className="text-sm md:text-base font-bold truncate flex items-center gap-2 text-white">
+              <Headset className="h-4 w-4 text-primary shrink-0" /> {title}
+            </h1>
           )}
-        </Button>
-        <span className="text-xs text-muted-foreground tabular-nums shrink-0">
-          {fmt(progress)} / {fmt(duration)}
-        </span>
-        <Slider
-          value={[duration ? (progress / duration) * 100 : 0]}
-          onValueChange={([v]) => {
-            const video = videoRef.current;
-            if (video && duration) video.currentTime = (v / 100) * duration;
-          }}
-          max={100}
-          step={0.1}
-          className="flex-1"
-        />
-        <Button
-          size="icon"
-          variant="ghost"
-          className="shrink-0 rounded-full"
-          onClick={() => {
-            const video = videoRef.current;
-            if (video) { video.currentTime = 0; player()?.userPlay(); }
-          }}
+          {subtitle && <p className="text-[11px] text-white/60 truncate">{subtitle}</p>}
+        </div>
+        {activeQuality && (
+          <div className="px-2.5 py-1 rounded-full bg-black/50 backdrop-blur border border-white/10 text-[11px] font-mono text-white/85 shrink-0">
+            {activeQuality}
+          </div>
+        )}
+      </div>
+
+      {/* Bottom controls */}
+      <div
+        className={cn(
+          "absolute bottom-0 left-0 right-0 z-20 px-3 pb-3 md:px-5 md:pb-4 pt-10 bg-gradient-to-t from-black/85 via-black/50 to-transparent transition-opacity duration-300",
+          overlayVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+        )}
+      >
+        {/* Seek bar */}
+        <div
+          ref={seekRef}
+          className="group relative h-6 flex items-center cursor-pointer touch-none"
+          onPointerDown={onSeekDown}
+          onPointerMove={onSeekMove}
+          onPointerUp={onSeekUp}
+          onPointerCancel={onSeekUp}
+          onPointerLeave={() => { if (!seekDragRef.current) setHoverFrac(null); }}
+          role="slider"
+          aria-label="Seek"
+          aria-valuemin={0}
+          aria-valuemax={Math.round(duration)}
+          aria-valuenow={Math.round(progress)}
         >
-          <RotateCcw className="h-4 w-4" />
-        </Button>
+          <div className="relative w-full h-1 group-hover:h-1.5 rounded-full bg-white/20 transition-all overflow-visible">
+            <div className="absolute inset-y-0 left-0 rounded-full bg-white/30" style={{ width: `${bufferedPct}%` }} />
+            <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#a855f7] to-[#ec4899]" style={{ width: `${playedPct}%` }} />
+            {hoverFrac !== null && (
+              <div className="absolute inset-y-0 left-0 rounded-full bg-white/25 pointer-events-none" style={{ width: `${hoverFrac * 100}%` }} />
+            )}
+            <div
+              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-3.5 w-3.5 rounded-full bg-white shadow-[0_0_0_4px_rgba(168,85,247,0.35)] opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{ left: `${playedPct}%`, opacity: seekDragRef.current ? 1 : undefined }}
+            />
+          </div>
+          {hoverFrac !== null && duration > 0 && (
+            <div
+              className="absolute -top-7 -translate-x-1/2 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-mono text-white pointer-events-none"
+              style={{ left: `${hoverFrac * 100}%` }}
+            >
+              {fmtTime(hoverFrac * duration)}
+            </div>
+          )}
+        </div>
+
+        {/* Buttons row */}
+        <div className="flex items-center gap-1 md:gap-2 mt-1">
+          <Button size="icon" variant="ghost" className="rounded-full text-white hover:bg-white/10 hover:text-white" onClick={() => apiRef.current?.toggle()} aria-label={playing ? "Pause" : "Play"}>
+            {playing ? <Pause className="h-5 w-5" fill="currentColor" /> : <Play className="h-5 w-5" fill="currentColor" />}
+          </Button>
+          <Button size="icon" variant="ghost" className="rounded-full text-white hover:bg-white/10 hover:text-white relative" onClick={() => apiRef.current?.skip(-SKIP_SECONDS)} aria-label="Back 10 seconds">
+            <RotateCcw className="h-5 w-5" />
+            <span className="absolute text-[8px] font-bold top-[13px]">10</span>
+          </Button>
+          <Button size="icon" variant="ghost" className="rounded-full text-white hover:bg-white/10 hover:text-white relative" onClick={() => apiRef.current?.skip(SKIP_SECONDS)} aria-label="Forward 10 seconds">
+            <RotateCw className="h-5 w-5" />
+            <span className="absolute text-[8px] font-bold top-[13px]">10</span>
+          </Button>
+
+          {/* Volume */}
+          <div className="group/vol flex items-center">
+            <Button
+              size="icon" variant="ghost" className="rounded-full text-white hover:bg-white/10 hover:text-white"
+              onClick={() => { const v = videoRef.current; if (v) v.muted = !v.muted; }}
+              aria-label={muted ? "Unmute" : "Mute"}
+            >
+              <VolumeIcon className="h-5 w-5" />
+            </Button>
+            <input
+              type="range" min={0} max={1} step={0.02}
+              value={muted ? 0 : volume}
+              onChange={(e) => { const v = videoRef.current; if (!v) return; v.volume = Number(e.target.value); v.muted = v.volume === 0; }}
+              className="hidden md:block w-0 opacity-0 group-hover/vol:w-20 group-hover/vol:opacity-100 focus:w-20 focus:opacity-100 transition-all duration-200 h-1 accent-[#a855f7] cursor-pointer"
+              aria-label="Volume"
+            />
+          </div>
+
+          <span className="text-[11px] md:text-xs text-white/85 tabular-nums font-mono ml-1 whitespace-nowrap">
+            {fmtTime(progress)} <span className="text-white/45">/ {fmtTime(duration)}</span>
+          </span>
+
+          <div className="flex-1" />
+
+          {gyroAvailable && (
+            <Button
+              size="icon" variant="ghost"
+              className={cn("rounded-full hover:bg-white/10 hover:text-white", gyroOn ? "text-primary" : "text-white")}
+              onClick={() => apiRef.current?.setGyro(!gyroOn)}
+              aria-label={gyroOn ? "Disable motion look" : "Enable motion look"}
+              title="Motion look (gyroscope)"
+            >
+              <Compass className={cn("h-5 w-5", gyroOn && "animate-pulse")} />
+            </Button>
+          )}
+
+          <Button size="icon" variant="ghost" className="rounded-full text-white hover:bg-white/10 hover:text-white" onClick={() => apiRef.current?.resetView()} aria-label="Reset view" title="Reset view (R)">
+            <Crosshair className="h-5 w-5" />
+          </Button>
+
+          {levels.length > 1 && (
+            <DropdownMenu onOpenChange={(o) => { menuOpenRef.current = o; showControls(); }}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="rounded-full text-white hover:bg-white/10 hover:text-white h-9 px-2.5 gap-1.5" aria-label="Quality">
+                  <Settings2 className="h-5 w-5" />
+                  <span className="hidden sm:inline text-xs font-semibold">{selectedLabel}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[10rem]">
+                <DropdownMenuLabel className="text-xs">Quality</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {[...levels].reverse().map((l) => (
+                  <DropdownMenuItem key={l.index} onClick={() => chooseLevel(l.index)} className="flex items-center justify-between gap-4">
+                    <span>{levelLabel(l)} <span className="text-muted-foreground text-xs">{l.width}×{l.height}</span></span>
+                    {selectedLevel === l.index && <Check className="h-4 w-4 text-primary" />}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuItem onClick={() => chooseLevel(-1)} className="flex items-center justify-between gap-4">
+                  <span>Auto <span className="text-muted-foreground text-xs">adaptive</span></span>
+                  {selectedLevel === -1 && <Check className="h-4 w-4 text-primary" />}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {xrSupported && (
+            inXR ? (
+              <Button variant="ghost" className="rounded-full text-white hover:bg-white/10 hover:text-white h-9 px-3 gap-1.5" onClick={() => apiRef.current?.exitVR()}>
+                <LogOut className="h-4 w-4" /> <span className="text-xs font-semibold">Exit VR</span>
+              </Button>
+            ) : (
+              <Button className="rounded-full bg-gradient-purple text-primary-foreground font-bold h-9 px-3 md:px-4 gap-1.5 glow-purple hover:opacity-90" onClick={() => apiRef.current?.enterVR().catch(() => {})}>
+                <Headset className="h-4 w-4" /> <span className="text-xs">Enter VR</span>
+              </Button>
+            )
+          )}
+
+          {fullscreenAvailable && (
+            <Button size="icon" variant="ghost" className="rounded-full text-white hover:bg-white/10 hover:text-white" onClick={toggleFullscreen} aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"} title="Fullscreen (F)">
+              {fullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
