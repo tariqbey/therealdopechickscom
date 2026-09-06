@@ -16,7 +16,7 @@ import ffmpegStatic from "ffmpeg-static";
 const ffmpegPath = ffmpegStatic as unknown as string;
 import {
   INTERNAL, deletePrefix, getObjectText, internalUrl, jobDone, jobGet, jobStatus, listPrefix, putObject, setSource, thumbUrl, videoGet, videoUpdate, type Plan,
-} from "./_lib/vr";
+} from "./_lib/vr.js";
 
 const ffmpeg = (args: string[]) =>
   new Promise<void>((resolve, reject) => {

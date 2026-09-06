@@ -16,7 +16,7 @@ import ffmpegStatic from "ffmpeg-static";
 const ffmpegPath = ffmpegStatic as unknown as string;
 import {
   INTERNAL, assertConfigured, buildPlan, getUser, internalHeaders, internalUrl, jobStart, selfOrigin, userSelect, videoGet, videoUpdate,
-} from "./_lib/vr";
+} from "./_lib/vr.js";
 
 const run = promisify(execFile);
 

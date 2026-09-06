@@ -3,7 +3,7 @@
  * the CALLER's Supabase token, so RLS only returns it to the owner or an admin.
  */
 export const config = { runtime: "nodejs" };
-import { assertConfigured, deletePrefix, userSelect } from "./_lib/vr";
+import { assertConfigured, deletePrefix, userSelect } from "./_lib/vr.js";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });

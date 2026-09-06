@@ -4,7 +4,7 @@
  * Worker. The browser streams the file straight to R2 in resumable 20MB parts.
  */
 export const config = { runtime: "nodejs" };
-import { assertConfigured, getUser, newVideoId, uploadBase, userSelect } from "./_lib/vr";
+import { assertConfigured, getUser, newVideoId, uploadBase, userSelect } from "./_lib/vr.js";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });

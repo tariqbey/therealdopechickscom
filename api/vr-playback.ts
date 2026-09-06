@@ -8,7 +8,7 @@
  *                 https://…            → passed through as-is
  */
 export const config = { runtime: "nodejs" };
-import { SUPABASE_ANON, SUPABASE_URL, playbackUrl } from "./_lib/vr";
+import { SUPABASE_ANON, SUPABASE_URL, playbackUrl } from "./_lib/vr.js";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
