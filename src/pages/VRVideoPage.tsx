@@ -93,11 +93,20 @@ const VRVideoPage = () => {
         <Lock className="h-10 w-10 text-accent" />
         <h1 className="text-xl font-black">{video?.title}</h1>
         <p className="text-sm text-muted-foreground max-w-sm">
-          This VR experience is locked. Unlock it for {video?.price_bread} BREAD on {creatorName}'s profile.
+          {user
+            ? <>This VR experience is locked. Unlock it for {video?.price_bread} BREAD on {creatorName}'s profile.</>
+            : <>Log in to watch this VR experience{video?.price_bread ? ` (${video.price_bread} BREAD)` : ""}.</>}
         </p>
-        <Button onClick={backToCreator} className="bg-gradient-purple text-primary-foreground font-bold">
-          Go to {creatorName}'s profile
-        </Button>
+        <div className="flex gap-2">
+          {!user && (
+            <Button onClick={() => navigate("/auth")} className="bg-gradient-purple text-primary-foreground font-bold">
+              Log in
+            </Button>
+          )}
+          <Button onClick={backToCreator} variant={user ? "default" : "outline"} className={user ? "bg-gradient-purple text-primary-foreground font-bold" : ""}>
+            Go to {creatorName}'s profile
+          </Button>
+        </div>
       </div>
     );
   }

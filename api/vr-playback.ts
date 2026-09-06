@@ -44,14 +44,16 @@ export default async function handler(req: any, res: any) {
 
   try {
     const { videoId, token } = req.body || {};
-    if (!videoId || !token) throw new Error("Missing videoId or token");
+    if (!videoId) throw new Error("Missing videoId");
 
     // Paywall gate: RPC returns the Bunny GUID only if this user may watch.
+    // Logged-out visitors call it as `anon`, which the RPC only satisfies for
+    // free (0 BREAD) videos — so free samples are watchable without an account.
     const rpcRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_vr_video_url`, {
       method: "POST",
       headers: {
         apikey: SUPABASE_ANON,
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${token || SUPABASE_ANON}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ p_video_id: videoId }),
@@ -59,6 +61,12 @@ export default async function handler(req: any, res: any) {
     const guid = await rpcRes.json();
     if (!guid || typeof guid !== "string") {
       return res.status(403).json({ error: "locked" });
+    }
+
+    // Sources are normally Bunny Stream GUIDs. A full URL (e.g. a Vercel Blob
+    // MP4 used for free samples) is passed straight through to the player.
+    if (/^https?:\/\//i.test(guid)) {
+      return res.status(200).json({ playlistUrl: guid });
     }
 
     const playlistUrl = signedPlaylistUrl(guid, 6 * 60 * 60); // 6 hours
