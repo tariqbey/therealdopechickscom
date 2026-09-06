@@ -1,0 +1,15 @@
+# Dope Chicks VR media edge: signed playback + resumable uploads in front of R2.
+# Deploy:  npx wrangler deploy            (from this directory)
+# Secrets: npx wrangler secret put SIGNING_SECRET
+#          npx wrangler secret put INTERNAL_SECRET
+name = "dopechicks-vr"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+workers_dev = true
+
+[[r2_buckets]]
+binding = "VR"
+bucket_name = "dopechicks-vr"
+
+[observability]
+enabled = true

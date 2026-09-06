@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import * as tus from "tus-js-client";
+import { prepareUpload, startProcessing, uploadSource } from "@/lib/vrUpload";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,9 @@ export interface VRVideo {
   width?: number | null;
   height?: number | null;
   duration_seconds?: number | null;
+  status?: "uploading" | "processing" | "ready" | null;
+  progress?: number | null;
+  transcode_error?: string | null;
 }
 
 /** Read pixel size + duration from a local file without uploading it. */
@@ -45,7 +48,7 @@ const probeVideo = (file: File) =>
     el.src = url;
   });
 
-const MAX_VIDEO_MB = 3584; // 3.5 GB — videos go to Vercel Blob, not Supabase
+const MAX_VIDEO_MB = 3584; // 3.5 GB — videos go straight to our Cloudflare R2 bucket
 
 const VRVideoManager = () => {
   const { user } = useAuth();
@@ -64,6 +67,19 @@ const VRVideoManager = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadPct, setUploadPct] = useState(0);
   const [deleting, setDeleting] = useState<VRVideo | null>(null);
+
+  // Live status/progress while the transcoder works
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`vr-videos-${user.id}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "vr_videos", filter: `creator_id=eq.${user.id}` }, (p) => {
+        const row = p.new as VRVideo;
+        setVideos((prev) => prev.map((v) => (v.id === row.id ? { ...v, ...row } : v)));
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id]);
 
   const loadVideos = async () => {
     if (!user) return;
@@ -90,44 +106,16 @@ const VRVideoManager = () => {
     const price = Math.max(0, parseInt(priceBread, 10) || 0);
 
     setUploading(true);
-    setUploadPct(2);
+    setUploadPct(1);
     try {
-      // Need the Supabase session token so the upload API can verify the creator
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Session expired — sign in again");
+      // 1. Creator check + video-scoped upload URL
+      const handle = await prepareUpload();
 
-      // 1. Ask our API to create the Bunny video + sign a resumable upload
-      const prepRes = await fetch("/api/vr-upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: session.access_token, title: title.trim() }),
-      });
-      const prep = await prepRes.json();
-      if (!prepRes.ok || prep.error) throw new Error(prep.error || "Upload prep failed");
-
-      // 2. Upload the (large) VR video straight to Bunny Stream via TUS (resumable).
-      //    Bunny auto-transcodes it to adaptive HLS once the bytes land.
-      await new Promise<void>((resolve, reject) => {
-        const uploader = new tus.Upload(videoFile, {
-          endpoint: prep.tusEndpoint,
-          retryDelays: [0, 3000, 6000, 12000],
-          headers: {
-            AuthorizationSignature: prep.signature,
-            AuthorizationExpire: String(prep.expiration),
-            VideoId: prep.videoId,
-            LibraryId: String(prep.libraryId),
-          },
-          metadata: { filetype: videoFile.type, title: title.trim() },
-          onError: reject,
-          onProgress: (sent, total) => setUploadPct(Math.round((sent / total) * 85)),
-          onSuccess: () => resolve(),
-        });
-        uploader.start();
-      });
-      const bunnyVideoId = prep.videoId as string;
+      // 2. Resumable multipart upload straight to R2 (0–85%)
+      await uploadSource(handle, videoFile, (f) => setUploadPct(1 + Math.round(f * 84)));
       setUploadPct(88);
 
-      // 2. Thumbnail stays in Supabase (small, public)
+      // 3. Thumbnail (optional; the transcoder makes one if you skip it)
       let thumbnailUrl: string | null = null;
       if (thumbFile) {
         const thumbExt = thumbFile.name.split(".").pop() || "jpg";
@@ -138,13 +126,13 @@ const VRVideoManager = () => {
         if (thumbErr) throw thumbErr;
         thumbnailUrl = supabase.storage.from("vr-thumbnails").getPublicUrl(thumbPath).data.publicUrl;
       }
-      setUploadPct(94);
+      setUploadPct(92);
 
-      // 3. Create the metadata row, then store the Blob URL in the locked
-      //    sources table (only readable via the paywalled get_vr_video_url RPC).
-      const { data: inserted, error: insertErr } = await supabase
+      // 4. Metadata row (playable right away from the original file) + locked source pointer
+      const { error: insertErr } = await supabase
         .from("vr_videos" as any)
         .insert({
+          id: handle.videoId,
           creator_id: user.id,
           title: title.trim(),
           description: description.trim() || null,
@@ -156,19 +144,20 @@ const VRVideoManager = () => {
           width: probe?.width ?? null,
           height: probe?.height ?? null,
           duration_seconds: probe?.duration ? Math.round(probe.duration) : null,
-        } as any)
-        .select("id")
-        .single();
+          status: "processing",
+          progress: 0,
+        } as any);
       if (insertErr) throw insertErr;
-
-      // Store the Bunny video GUID in the locked sources table (read only via
-      // the paywalled get_vr_video_url RPC).
       const { error: srcErr } = await supabase
         .from("vr_video_sources" as any)
-        .insert({ video_id: (inserted as any).id, blob_url: bunnyVideoId } as any);
+        .insert({ video_id: handle.videoId, blob_url: `r2:${handle.videoId}:source` } as any);
       if (srcErr) throw srcErr;
 
-      toast({ title: "VR video published! 🥽", description: "Bunny is transcoding it now — playable in a minute. " + (price > 0 ? `Fans unlock for ${price} BREAD.` : "Free for all fans.") });
+      // 5. Kick off transcoding (adaptive 4K/1440p HLS). Progress streams into the list below.
+      await startProcessing(handle.videoId);
+      setUploadPct(100);
+
+      toast({ title: "VR video published! 🥽", description: "It's watchable now from the original file; the HD adaptive version finishes in a few minutes. " + (price > 0 ? `Fans unlock for ${price} BREAD.` : "Free for all fans.") });
       setTitle("");
       setDescription("");
       setPriceBread("25");
@@ -373,7 +362,14 @@ const VRVideoManager = () => {
                   <p className="text-sm font-medium truncate">{v.title}</p>
                   <p className="text-[11px] text-muted-foreground">
                     {formatBadge(v.format as VRFormat)} · {v.unlocks_count} unlock{v.unlocks_count === 1 ? "" : "s"} · {v.is_published ? "Live" : "Hidden"}
+                    {v.status === "processing" && <span className="text-primary"> · Processing HD {v.progress ?? 0}%</span>}
+                    {v.status === "ready" && v.transcode_error && <span className="text-amber-500" title={v.transcode_error}> · HD version failed (original plays)</span>}
                   </p>
+                  {v.status === "processing" && (
+                    <div className="mt-1 h-1 w-40 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-[#a855f7] to-[#ec4899] transition-all" style={{ width: `${Math.max(2, v.progress ?? 0)}%` }} />
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <Input

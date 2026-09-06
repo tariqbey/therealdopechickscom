@@ -2,5 +2,9 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
-  ]
+  ],
+  "functions": {
+    "api/vr-chunk.ts": { "maxDuration": 800, "memory": 3009, "includeFiles": "node_modules/ffmpeg-static/**" },
+    "api/vr-process.ts": { "maxDuration": 300, "memory": 1769, "includeFiles": "node_modules/ffmpeg-static/**" }
+  }
 }

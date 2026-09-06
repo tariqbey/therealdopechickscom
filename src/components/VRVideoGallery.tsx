@@ -133,6 +133,11 @@ const VRVideoGallery = ({ creatorId, isOwnerOrAdmin }: VRVideoGalleryProps) => {
               <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-primary/90 text-primary-foreground text-[10px] font-bold flex items-center gap-1">
                 <Headset className="h-3 w-3" /> {formatBadge(v.format as VRFormat)}
               </div>
+              {v.status === "processing" && (
+                <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-semibold">
+                  HD {v.progress ?? 0}%
+                </div>
+              )}
 
               {!unlocked && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
