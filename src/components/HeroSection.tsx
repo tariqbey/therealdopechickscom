@@ -12,18 +12,28 @@ const HeroSection = () => {
 
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
-      {/* Background video with overlay */}
-      <div className="absolute inset-0">
+      {/* Background video: blurred copy fills the edges, sharp copy shows the whole frame */}
+      <div className="absolute inset-0 bg-black">
         <video
           src={dopeVideo}
           autoPlay
           loop
           muted
           playsInline
-          className="w-full h-full object-cover object-[70%_center] md:object-center"
+          aria-hidden
+          className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-background/40" />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background/60" />
+        <video
+          src={dopeVideo}
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="relative w-full h-full object-cover object-[70%_center] md:object-contain md:object-center"
+        />
+        {/* Light left-side scrim for headline legibility; fade into the page at the bottom */}
+        <div className="absolute inset-0 bg-gradient-to-r from-background/85 via-background/35 to-transparent md:via-background/20 md:to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-background to-transparent" />
       </div>
 
       <div className="relative container mx-auto px-4 pt-24 flex flex-col items-center md:items-start">
@@ -43,7 +53,7 @@ const HeroSection = () => {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.3 }}
-            className="text-5xl md:text-7xl font-black leading-[0.95] mb-6"
+            className="text-5xl md:text-7xl font-black leading-[0.95] mb-6 drop-shadow-[0_2px_24px_rgba(0,0,0,0.8)]"
           >
             Where <span className="text-gradient-gold italic">Dope</span>{" "}
             <br />
@@ -55,7 +65,7 @@ const HeroSection = () => {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="text-lg text-muted-foreground max-w-lg mb-8 font-light"
+            className="text-lg text-foreground/85 max-w-lg mb-8 font-light drop-shadow-[0_1px_12px_rgba(0,0,0,0.9)]"
           >
             The premium platform for exclusive content. Subscribe to your favorite
             creators, unlock AI-powered tools, and earn with{" "}
