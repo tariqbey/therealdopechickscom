@@ -9,7 +9,7 @@
  */
 export const config = { runtime: "nodejs", maxDuration: 800 };
 import { spawn } from "node:child_process";
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import ffmpegStatic from "ffmpeg-static";
@@ -102,6 +102,7 @@ export default async function handler(req: any, res: any) {
       if (v && !v.thumbnail_url) await videoUpdate(videoId, { thumbnail_url: thumbUrl(videoId) });
     } else if (mode === "audio") {
       const dir = join(work, "audio");
+      await mkdir(dir, { recursive: true });
       await ffmpeg([...inputArgs, "-i", src, "-vn", "-map", "0:a:0", "-c:a", "aac", "-b:a", "160k", "-ac", "2",
         "-f", "hls", "-hls_time", "4", "-hls_list_size", "0", "-hls_playlist_type", "vod", "-hls_flags", "independent_segments",
         "-hls_segment_type", "mpegts", "-hls_segment_filename", join(dir, "a_%05d.ts"), join(dir, "index.m3u8")]);
@@ -114,6 +115,7 @@ export default async function handler(req: any, res: any) {
       const manifest: Record<string, { file: string; duration: number }[]> = {};
       for (const r of plan.renditions) {
         const dir = join(work, r.name);
+        await mkdir(dir, { recursive: true });
         args.push(
           "-map", "0:v:0", "-c:v", "libx264", "-preset", "veryfast", "-profile:v", "high", "-level", "5.1", "-pix_fmt", "yuv420p",
           "-b:v", `${r.bitrateK}k`, "-maxrate", `${r.maxrateK}k`, "-bufsize", `${r.maxrateK * 2}k`,
