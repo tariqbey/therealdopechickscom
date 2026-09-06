@@ -243,24 +243,39 @@ const VR180WebXRPlayer = ({ src, poster, title, subtitle, onBack, format, relate
       // The <video> is hidden (it only feeds the 3D texture), so capLevelToPlayerSize
       // would pick the lowest rendition. VR wants max sharpness → pin the top level;
       // the quality menu can drop it or switch to Auto.
-      const hls = new Hls({ capLevelToPlayerSize: false, maxBufferLength: 20, abrEwmaDefaultEstimate: 50_000_000 });
+      const hls = new Hls({
+        capLevelToPlayerSize: false,
+        maxBufferLength: 20,
+        abrEwmaDefaultEstimate: 50_000_000,
+        autoStartLoad: false, // we start loading ourselves once the top level is pinned
+      });
       hlsRef.current = hls;
-      hls.loadSource(src);
-      hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
         const list: Level[] = (data.levels || []).map((l, i) => ({ index: i, width: l.width, height: l.height, bitrate: l.bitrate }));
         setLevels(list);
         if (list.length) {
           const top = list.length - 1;
+          // Pin the sharpest rendition without an immediate flush/switch (that
+          // can race media attachment and stall before the first segment).
           hls.startLevel = top;
-          hls.currentLevel = top;
+          hls.loadLevel = top;
           setSelectedLevel(top);
         }
+        hls.startLoad(0);
       });
       hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => {
         const lvl = hls.levels[data.level];
         if (lvl) setActiveQuality(`${lvl.width}×${lvl.height}`);
       });
+      hls.on(Hls.Events.ERROR, (_e, data) => {
+        console.warn("[vr-player] hls error", data.type, data.details, data.fatal ? "(fatal)" : "");
+        if (!data.fatal) return;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
+        else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+        else { hls.destroy(); hlsRef.current = null; video.src = src; }
+      });
+      hls.attachMedia(video);
+      hls.loadSource(src);
       return () => { hls.destroy(); hlsRef.current = null; };
     }
     video.src = src;
