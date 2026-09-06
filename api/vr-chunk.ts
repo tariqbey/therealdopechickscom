@@ -12,14 +12,15 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import ffmpegPath from "ffmpeg-static";
+import ffmpegStatic from "ffmpeg-static";
+const ffmpegPath = ffmpegStatic as unknown as string;
 import {
-  INTERNAL, adminPatch, adminRpc, adminSelect, getObjectText, internalUrl, listPrefix, putObject, thumbUrl, type Plan,
+  INTERNAL, deletePrefix, getObjectText, internalUrl, jobDone, jobGet, jobStatus, listPrefix, putObject, setSource, thumbUrl, videoGet, videoUpdate, type Plan,
 } from "./_lib/vr";
 
 const ffmpeg = (args: string[]) =>
   new Promise<void>((resolve, reject) => {
-    const p = spawn(ffmpegPath as string, ["-hide_banner", "-loglevel", "error", "-y", ...args]);
+    const p = spawn(ffmpegPath, ["-hide_banner", "-loglevel", "error", "-y", ...args]);
     let err = "";
     p.stderr.on("data", (d) => { err += d.toString(); if (err.length > 20000) err = err.slice(-20000); });
     p.on("error", reject);
@@ -72,11 +73,10 @@ async function finalize(videoId: string, plan: Plan) {
   }
   await putObject(`videos/${videoId}/master.m3u8`, master, "application/vnd.apple.mpegurl");
 
-  await adminPatch("vr_video_sources", `video_id=eq.${videoId}`, { blob_url: `r2:${videoId}:hls` });
-  await adminPatch("vr_videos", `id=eq.${videoId}`, { status: "ready", progress: 100, transcode_error: null });
-  await adminPatch("vr_transcode_jobs", `video_id=eq.${videoId}`, { status: "done", finished_at: new Date().toISOString() });
-  // best effort cleanup of the work manifests
-  try { await fetch(`${internalUrl("").replace(/\/object\/$/, "")}/prefix/videos/${videoId}/_work/`, { method: "DELETE", headers: { "x-internal-secret": INTERNAL } }); } catch { /* ignore */ }
+  await setSource(videoId, `r2:${videoId}:hls`);
+  await videoUpdate(videoId, { status: "ready", progress: 100, transcode_error: null });
+  await jobStatus(videoId, "done");
+  await deletePrefix(`videos/${videoId}/_work/`).catch(() => {}); // best-effort cleanup
 }
 
 export default async function handler(req: any, res: any) {
@@ -85,7 +85,7 @@ export default async function handler(req: any, res: any) {
   const { videoId, mode, index } = req.body || {};
   if (!videoId || !mode) return res.status(400).json({ error: "Missing videoId/mode" });
 
-  const [job] = await adminSelect("vr_transcode_jobs", `video_id=eq.${videoId}&select=plan,total_jobs,done_jobs,status`);
+  const job = await jobGet(videoId);
   if (!job) return res.status(404).json({ error: "No job" });
   const plan = job.plan as Plan;
   const src = internalUrl(`videos/${videoId}/source.mp4`);
@@ -98,8 +98,8 @@ export default async function handler(req: any, res: any) {
       const vf = plan.sideBySide ? "crop=iw/2:ih:0:0,scale=900:-2" : "scale=900:-2";
       await ffmpeg([...inputArgs, "-ss", String(t), "-i", src, "-frames:v", "1", "-vf", vf, "-q:v", "3", join(work, "thumb.jpg")]);
       await putObject(`videos/${videoId}/thumb.jpg`, await readFile(join(work, "thumb.jpg")), "image/jpeg");
-      const [v] = await adminSelect("vr_videos", `id=eq.${videoId}&select=thumbnail_url`);
-      if (v && !v.thumbnail_url) await adminPatch("vr_videos", `id=eq.${videoId}`, { thumbnail_url: thumbUrl(videoId) });
+      const v = await videoGet(videoId);
+      if (v && !v.thumbnail_url) await videoUpdate(videoId, { thumbnail_url: thumbUrl(videoId) });
     } else if (mode === "audio") {
       const dir = join(work, "audio");
       await ffmpeg([...inputArgs, "-i", src, "-vn", "-map", "0:a:0", "-c:a", "aac", "-b:a", "160k", "-ac", "2",
@@ -136,18 +136,18 @@ export default async function handler(req: any, res: any) {
       throw new Error(`Unknown mode ${mode}`);
     }
 
-    const done = await adminRpc<{ done_jobs: number; total_jobs: number }>("vr_job_done", { p_video_id: videoId });
+    const done = await jobDone(videoId);
     const progress = Math.max(3, Math.min(99, Math.round((done.done_jobs / done.total_jobs) * 100)));
-    await adminPatch("vr_videos", `id=eq.${videoId}`, { progress });
+    await videoUpdate(videoId, { progress });
     if (done.done_jobs >= done.total_jobs) await finalize(videoId, plan);
     return res.status(200).json({ ok: true, mode, index, done });
   } catch (err) {
     const message = (err as Error).message;
     console.error(`[vr-chunk] ${videoId} ${mode} ${index ?? ""} failed:`, message);
     try {
-      await adminPatch("vr_transcode_jobs", `video_id=eq.${videoId}`, { status: "failed", error: message });
+      await jobStatus(videoId, "failed", message);
       // Keep the video watchable from the original file.
-      await adminPatch("vr_videos", `id=eq.${videoId}`, { status: "ready", transcode_error: message });
+      await videoUpdate(videoId, { status: "ready", transcode_error: message });
     } catch { /* ignore */ }
     return res.status(500).json({ error: message });
   } finally {

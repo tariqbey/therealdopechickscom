@@ -12,10 +12,10 @@ export const config = { runtime: "nodejs", maxDuration: 300 };
 import { waitUntil } from "@vercel/functions";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import ffmpegPath from "ffmpeg-static";
+import ffmpegStatic from "ffmpeg-static";
+const ffmpegPath = ffmpegStatic as unknown as string;
 import {
-  INTERNAL, adminPatch, adminUpsert, assertConfigured, buildPlan, getUser, internalHeaders, internalUrl,
-  selfOrigin, userSelect, SUPABASE_SERVICE,
+  INTERNAL, assertConfigured, buildPlan, getUser, internalHeaders, internalUrl, jobStart, selfOrigin, userSelect, videoGet, videoUpdate,
 } from "./_lib/vr";
 
 const run = promisify(execFile);
@@ -25,7 +25,7 @@ async function probe(videoId: string) {
   // ffmpeg -i prints stream info to stderr and exits non-zero (no output) — that's expected.
   let stderr = "";
   try {
-    await run(ffmpegPath as string, ["-hide_banner", "-headers", `x-internal-secret: ${INTERNAL}\r\n`, "-i", url], { maxBuffer: 4 * 1024 * 1024 });
+    await run(ffmpegPath, ["-hide_banner", "-headers", `x-internal-secret: ${INTERNAL}\r\n`, "-i", url], { maxBuffer: 4 * 1024 * 1024 });
   } catch (e: any) { stderr = e.stderr || ""; }
   const dur = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(stderr);
   const vid = /Stream #\d+:\d+.*?Video:.*?\s(\d{2,5})x(\d{2,5})/.exec(stderr);
@@ -38,26 +38,33 @@ export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   try {
     assertConfigured();
-    if (!SUPABASE_SERVICE) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured");
     const { videoId, token } = req.body || {};
-    if (!videoId || !token) throw new Error("Missing videoId or token");
-    const user = await getUser(token);
-    const rows = await userSelect(token, "vr_videos", `id=eq.${videoId}&select=id,creator_id,format`);
-    if (!rows[0] || rows[0].creator_id !== user.id) throw new Error("Not your video");
+    if (!videoId) throw new Error("Missing videoId");
+    let format: string | null = null;
+    if ((req.headers["x-internal-secret"] || "") === INTERNAL) {
+      // admin / re-transcode trigger
+      const v = await videoGet(videoId);
+      if (!v) throw new Error("Video not found");
+      format = v.format;
+    } else {
+      if (!token) throw new Error("Missing token");
+      const user = await getUser(token);
+      const rows = await userSelect(token, "vr_videos", `id=eq.${videoId}&select=id,creator_id,format`);
+      if (!rows[0] || rows[0].creator_id !== user.id) throw new Error("Not your video");
+      format = rows[0].format;
+    }
 
     // Make sure the upload actually landed.
     const head = await fetch(internalUrl(`videos/${videoId}/source.mp4`), { method: "HEAD", headers: internalHeaders() });
     if (!head.ok) throw new Error("Source file not found — upload incomplete");
 
-    await adminPatch("vr_videos", `id=eq.${videoId}`, { status: "processing", progress: 1, transcode_error: null });
+    await videoUpdate(videoId, { status: "processing", progress: 1, transcode_error: null });
 
     const info = await probe(videoId);
-    const plan = buildPlan(info.duration, info.width, info.height, info.hasAudio, rows[0].format);
+    const plan = buildPlan(info.duration, info.width, info.height, info.hasAudio, format);
     const totalJobs = plan.chunks.length + (plan.hasAudio ? 1 : 0) + 1; // + thumbnail job
-    await adminUpsert("vr_transcode_jobs", {
-      video_id: videoId, plan, total_jobs: totalJobs, done_jobs: 0, status: "running", error: null, started_at: new Date().toISOString(),
-    }, "video_id");
-    await adminPatch("vr_videos", `id=eq.${videoId}`, { width: info.width, height: info.height, duration_seconds: Math.round(info.duration), progress: 3 });
+    await jobStart(videoId, plan, totalJobs);
+    await videoUpdate(videoId, { width: info.width, height: info.height, duration_seconds: Math.round(info.duration), progress: 3 });
 
     const origin = selfOrigin();
     const fire = (body: Record<string, unknown>) =>
@@ -79,7 +86,7 @@ export default async function handler(req: any, res: any) {
   } catch (err) {
     try {
       const { videoId } = req.body || {};
-      if (videoId && SUPABASE_SERVICE) await adminPatch("vr_videos", `id=eq.${videoId}`, { status: "ready", transcode_error: (err as Error).message });
+      if (videoId) await videoUpdate(videoId, { status: "ready", transcode_error: (err as Error).message });
     } catch { /* ignore */ }
     return res.status(400).json({ error: (err as Error).message });
   }

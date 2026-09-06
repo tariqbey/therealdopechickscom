@@ -15,7 +15,6 @@ const SIGNING = process.env.VR_SIGNING_SECRET || "";
 export const INTERNAL = process.env.VR_INTERNAL_SECRET || "";
 export const SUPABASE_URL = process.env.VITE_SUPABASE_URL as string;
 export const SUPABASE_ANON = process.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
-export const SUPABASE_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
 export const assertConfigured = () => {
   if (!WORKER || !SIGNING || !INTERNAL) throw new Error("VR storage is not configured (VR_WORKER_URL / VR_SIGNING_SECRET / VR_INTERNAL_SECRET)");
@@ -62,7 +61,8 @@ export async function deletePrefix(prefix: string) {
   if (!r.ok) throw new Error(`DELETE ${prefix} failed: ${r.status}`);
 }
 
-/** Supabase helpers. User-scoped calls respect RLS; admin calls use the service role. */
+/** Supabase helpers. User-scoped calls respect RLS. Pipeline calls go through
+ *  SECURITY DEFINER functions gated by the pipeline secret (no service-role key). */
 export async function getUser(token: string) {
   const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` } });
   if (!r.ok) throw new Error("Invalid session");
@@ -75,36 +75,23 @@ export async function userSelect<T = any>(token: string, table: string, query: s
   if (!r.ok) throw new Error(`Supabase ${table}: ${r.status}`);
   return r.json();
 }
-export async function adminRpc<T = any>(fn: string, args: Record<string, unknown>): Promise<T> {
+export async function pipe<T = any>(fn: string, args: Record<string, unknown>): Promise<T> {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
     method: "POST",
-    headers: { apikey: SUPABASE_SERVICE, Authorization: `Bearer ${SUPABASE_SERVICE}`, "Content-Type": "application/json" },
-    body: JSON.stringify(args),
+    headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ p_secret: INTERNAL, ...args }),
   });
-  if (!r.ok) throw new Error(`rpc ${fn}: ${r.status} ${await r.text()}`);
-  return r.json();
+  if (!r.ok) throw new Error(`${fn}: ${r.status} ${await r.text()}`);
+  const text = await r.text();
+  return (text ? JSON.parse(text) : null) as T;
 }
-export async function adminPatch(table: string, query: string, body: Record<string, unknown>) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
-    method: "PATCH",
-    headers: { apikey: SUPABASE_SERVICE, Authorization: `Bearer ${SUPABASE_SERVICE}`, "Content-Type": "application/json", Prefer: "return=minimal" },
-    body: JSON.stringify(body),
-  });
-  if (!r.ok) throw new Error(`patch ${table}: ${r.status} ${await r.text()}`);
-}
-export async function adminSelect<T = any>(table: string, query: string): Promise<T[]> {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, { headers: { apikey: SUPABASE_SERVICE, Authorization: `Bearer ${SUPABASE_SERVICE}` } });
-  if (!r.ok) throw new Error(`select ${table}: ${r.status}`);
-  return r.json();
-}
-export async function adminUpsert(table: string, body: Record<string, unknown>, onConflict: string) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?on_conflict=${onConflict}`, {
-    method: "POST",
-    headers: { apikey: SUPABASE_SERVICE, Authorization: `Bearer ${SUPABASE_SERVICE}`, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
-    body: JSON.stringify(body),
-  });
-  if (!r.ok) throw new Error(`upsert ${table}: ${r.status} ${await r.text()}`);
-}
+export const videoUpdate = (videoId: string, patch: Record<string, unknown>) => pipe("vr_pipeline_video_update", { p_video_id: videoId, p_patch: patch });
+export const videoGet = (videoId: string) => pipe<{ id: string; creator_id: string; format: string; thumbnail_url: string | null; status: string } | null>("vr_pipeline_video_get", { p_video_id: videoId });
+export const setSource = (videoId: string, source: string) => pipe("vr_pipeline_set_source", { p_video_id: videoId, p_source: source });
+export const jobStart = (videoId: string, plan: unknown, total: number) => pipe("vr_pipeline_job_start", { p_video_id: videoId, p_plan: plan, p_total: total });
+export const jobGet = (videoId: string) => pipe<{ plan: Plan; total_jobs: number; done_jobs: number; status: string } | null>("vr_pipeline_job_get", { p_video_id: videoId });
+export const jobDone = (videoId: string) => pipe<{ done_jobs: number; total_jobs: number }>("vr_pipeline_job_done", { p_video_id: videoId });
+export const jobStatus = (videoId: string, status: string, error?: string) => pipe("vr_pipeline_job_status", { p_video_id: videoId, p_status: status, p_error: error ?? null });
 
 /** Where this deployment can reach itself (for fan-out to worker functions). */
 export const selfOrigin = () => {
