@@ -4,8 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Headset, Loader2, Lock } from "lucide-react";
-import VR180WebXRPlayer from "@/components/VR180WebXRPlayer";
+import VR180WebXRPlayer, { type RelatedVideo } from "@/components/VR180WebXRPlayer";
 import type { VRVideo } from "@/components/VRVideoManager";
+import { formatBadge, type VRFormat } from "@/lib/vrFormats";
 
 const VRVideoPage = () => {
   const { videoId } = useParams<{ videoId: string }>();
@@ -15,11 +16,14 @@ const VRVideoPage = () => {
   const [video, setVideo] = useState<VRVideo | null>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [creatorName, setCreatorName] = useState<string>("");
+  const [related, setRelated] = useState<RelatedVideo[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "locked" | "notfound">("loading");
 
   useEffect(() => {
     if (authLoading || !videoId) return;
 
+    setState("loading");
+    setSignedUrl(null);
     const load = async () => {
       const { data } = await supabase
         .from("vr_videos" as any)
@@ -29,6 +33,28 @@ const VRVideoPage = () => {
       const v = data as unknown as VRVideo | null;
       if (!v) { setState("notfound"); return; }
       setVideo(v);
+
+      // Up-next: the creator's other free/unlocked videos (locked ones are skipped
+      // so autoplay never lands on a paywall).
+      supabase
+        .from("vr_videos" as any)
+        .select("id, title, thumbnail_url, format, price_bread")
+        .eq("creator_id", v.creator_id)
+        .eq("is_published", true)
+        .neq("id", v.id)
+        .order("created_at", { ascending: false })
+        .limit(12)
+        .then(async ({ data: others }) => {
+          const list = ((others as any[]) || []);
+          let unlocked = new Set<string>();
+          if (user) {
+            const { data: u } = await supabase.from("vr_video_unlocks" as any).select("video_id").eq("fan_user_id", user.id);
+            unlocked = new Set(((u as any[]) || []).map((x) => x.video_id));
+          }
+          setRelated(list
+            .filter((o) => o.price_bread === 0 || unlocked.has(o.id) || user?.id === v.creator_id)
+            .map((o) => ({ id: o.id, title: o.title, thumbnail_url: o.thumbnail_url, format: o.format })));
+        });
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -118,8 +144,11 @@ const VRVideoPage = () => {
           src={signedUrl}
           poster={video?.thumbnail_url || undefined}
           title={video?.title}
-          subtitle={`${creatorName} · VR180`}
+          subtitle={`${creatorName} · ${formatBadge(video?.format as VRFormat)}`}
           onBack={backToCreator}
+          format={video?.format}
+          related={related}
+          onSelectRelated={(id) => navigate(`/vr/${id}`)}
         />
       )}
     </div>

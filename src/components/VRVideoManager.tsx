@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Upload, Loader2, Headset, Trash2, Eye, EyeOff, ImageIcon } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DEFAULT_VR_FORMAT, VR_FORMATS, formatBadge, guessFormat, type VRFormat } from "@/lib/vrFormats";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -24,7 +26,24 @@ export interface VRVideo {
   is_published: boolean;
   unlocks_count: number;
   created_at: string;
+  format?: VRFormat | string | null;
+  width?: number | null;
+  height?: number | null;
+  duration_seconds?: number | null;
 }
+
+/** Read pixel size + duration from a local file without uploading it. */
+const probeVideo = (file: File) =>
+  new Promise<{ width: number; height: number; duration: number } | null>((resolve) => {
+    const el = document.createElement("video");
+    el.preload = "metadata";
+    el.muted = true;
+    const url = URL.createObjectURL(file);
+    const done = (v: { width: number; height: number; duration: number } | null) => { URL.revokeObjectURL(url); resolve(v); };
+    el.onloadedmetadata = () => done({ width: el.videoWidth, height: el.videoHeight, duration: el.duration });
+    el.onerror = () => done(null);
+    el.src = url;
+  });
 
 const MAX_VIDEO_MB = 3584; // 3.5 GB — videos go to Vercel Blob, not Supabase
 
@@ -40,6 +59,8 @@ const VRVideoManager = () => {
   const [priceBread, setPriceBread] = useState("25");
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [thumbFile, setThumbFile] = useState<File | null>(null);
+  const [format, setFormat] = useState<VRFormat>(DEFAULT_VR_FORMAT);
+  const [probe, setProbe] = useState<{ width: number; height: number; duration: number } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadPct, setUploadPct] = useState(0);
   const [deleting, setDeleting] = useState<VRVideo | null>(null);
@@ -131,6 +152,10 @@ const VRVideoManager = () => {
           thumbnail_url: thumbnailUrl,
           price_bread: price,
           is_published: true,
+          format,
+          width: probe?.width ?? null,
+          height: probe?.height ?? null,
+          duration_seconds: probe?.duration ? Math.round(probe.duration) : null,
         } as any)
         .select("id")
         .single();
@@ -149,6 +174,8 @@ const VRVideoManager = () => {
       setPriceBread("25");
       setVideoFile(null);
       setThumbFile(null);
+      setProbe(null);
+      setFormat(DEFAULT_VR_FORMAT);
       if (videoInputRef.current) videoInputRef.current.value = "";
       if (thumbInputRef.current) thumbInputRef.current.value = "";
       loadVideos();
@@ -205,11 +232,11 @@ const VRVideoManager = () => {
       {/* Upload form */}
       <div className="rounded-xl bg-gradient-card border border-border p-5 space-y-4">
         <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-          <Headset className="h-4 w-4 text-primary" /> Upload VR180 Video
+          <Headset className="h-4 w-4 text-primary" /> Upload Immersive Video
         </h3>
         <p className="text-xs text-muted-foreground">
-          Side-by-side stereo VR180 MP4 (H.264 recommended, max 3.5GB).
-          Fans watch it in a real VR headset right from your profile.
+          VR180 or 360°, 2D or 3D (side-by-side / top-bottom), or a regular video for the virtual cinema.
+          MP4 H.264, max 3.5GB. Fans watch on any phone, desktop, or VR headset right from your profile.
         </p>
 
         <div>
@@ -232,6 +259,26 @@ const VRVideoManager = () => {
             maxLength={500}
             className="w-full h-16 bg-muted border border-border rounded-lg p-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary mt-1"
           />
+        </div>
+
+        <div>
+          <Label className="text-xs text-muted-foreground">Video format</Label>
+          <Select value={format} onValueChange={(v) => setFormat(v as VRFormat)}>
+            <SelectTrigger className="bg-muted border-border mt-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {VR_FORMATS.map((f) => (
+                <SelectItem key={f.value} value={f.value}>
+                  <span className="font-medium">{f.label}</span>
+                  <span className="text-muted-foreground text-xs ml-2 hidden sm:inline">{f.hint}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {probe && (
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Detected {probe.width}×{probe.height} · {Math.round(probe.duration)}s · suggested: {formatBadge(guessFormat(probe.width, probe.height))}
+            </p>
+          )}
         </div>
 
         <div className="flex items-end gap-4">
@@ -281,6 +328,8 @@ const VRVideoManager = () => {
               return;
             }
             setVideoFile(f || null);
+            setProbe(null);
+            if (f) probeVideo(f).then((p) => { if (p) { setProbe(p); setFormat(guessFormat(p.width, p.height)); } });
           }}
         />
         <input
@@ -323,7 +372,7 @@ const VRVideoManager = () => {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{v.title}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    {v.unlocks_count} unlock{v.unlocks_count === 1 ? "" : "s"} · {v.is_published ? "Live" : "Hidden"}
+                    {formatBadge(v.format as VRFormat)} · {v.unlocks_count} unlock{v.unlocks_count === 1 ? "" : "s"} · {v.is_published ? "Live" : "Hidden"}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">

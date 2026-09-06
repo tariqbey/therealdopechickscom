@@ -11,6 +11,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import type { VRVideo } from "@/components/VRVideoManager";
+import { formatBadge, type VRFormat } from "@/lib/vrFormats";
 
 interface VRVideoGalleryProps {
   creatorId: string;
@@ -103,7 +104,7 @@ const VRVideoGallery = ({ creatorId, isOwnerOrAdmin }: VRVideoGalleryProps) => {
       <h2 className="text-xl font-black flex items-center gap-2 mb-4">
         <Headset className="h-5 w-5 text-primary" /> VR Experiences
         <span className="text-[10px] font-bold uppercase tracking-wider bg-gradient-purple text-primary-foreground px-2 py-0.5 rounded-full">
-          VR180
+          VR180 · 360 · 3D
         </span>
       </h2>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -130,7 +131,7 @@ const VRVideoGallery = ({ creatorId, isOwnerOrAdmin }: VRVideoGalleryProps) => {
               <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-background/20" />
 
               <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-primary/90 text-primary-foreground text-[10px] font-bold flex items-center gap-1">
-                <Headset className="h-3 w-3" /> VR
+                <Headset className="h-3 w-3" /> {formatBadge(v.format as VRFormat)}
               </div>
 
               {!unlocked && (

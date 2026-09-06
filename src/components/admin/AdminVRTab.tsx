@@ -10,6 +10,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { VRVideo } from "@/components/VRVideoManager";
+import { formatBadge, type VRFormat } from "@/lib/vrFormats";
 
 interface VRVideoRow extends VRVideo {
   creator_name: string;
@@ -148,7 +149,10 @@ const AdminVRTab = () => {
                             </div>
                           )}
                         </div>
-                        <span className="truncate max-w-[180px] font-medium">{v.title}</span>
+                        <div className="min-w-0">
+                          <span className="block truncate max-w-[180px] font-medium">{v.title}</span>
+                          <span className="text-[10px] text-muted-foreground">{formatBadge(v.format as VRFormat)}{v.width ? ` · ${v.width}×${v.height}` : ""}</span>
+                        </div>
                       </div>
                     </td>
                     <td className="py-3 text-muted-foreground">{v.creator_name}</td>
