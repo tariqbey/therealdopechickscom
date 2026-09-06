@@ -97,8 +97,8 @@ const SectionHeader = ({
 const toCard = (c: RealCreator) => ({
   name: c.display_name || "Creator",
   handle: (c.display_name || "creator").toLowerCase().replace(/\s+/g, ""),
-  avatar: c.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face",
-  coverImage: c.cover_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&h=350&fit=crop",
+  avatar: c.avatar_url || "/placeholder.svg",
+  coverImage: c.cover_url || c.avatar_url || "/placeholder.svg",
   subscribers: "—",
   price: 0,
   isVerified: true,
@@ -107,6 +107,7 @@ const toCard = (c: RealCreator) => ({
 const FeaturedCreators = () => {
   const [showDummy, setShowDummy] = useState(true);
   const [featuredCreators, setFeaturedCreators] = useState<RealCreator[]>([]);
+  const [allCreators, setAllCreators] = useState<RealCreator[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -125,7 +126,9 @@ const FeaturedCreators = () => {
         supabase
           .from("profiles")
           .select("user_id, display_name, avatar_url, cover_url")
-          .eq("is_creator", true),
+          .eq("is_creator", true)
+          .eq("approval_status", "approved")
+          .order("created_at", { ascending: false }),
       ]);
 
       if (dummyRes.data) {
@@ -133,6 +136,7 @@ const FeaturedCreators = () => {
       }
 
       const allCreators = (creatorsRes.data as RealCreator[]) || [];
+      setAllCreators(allCreators);
       const featuredIds: string[] = (featuredRes.data as any)?.value?.user_ids || [];
 
       // Build featured list in order
@@ -148,14 +152,19 @@ const FeaturedCreators = () => {
 
   const featuredCards = featuredCreators.map(toCard);
 
-  // If dummy on and no featured picked, show mock; otherwise show real featured
+  // Featured: admin picks first; otherwise the demo cards while dummy content is on,
+  // otherwise the newest real creators. Trending: the remaining real creators.
+  const realFeatured = featuredCreators.length > 0 ? featuredCreators : allCreators.slice(0, 3);
   const displayFeatured = featuredCards.length > 0
     ? featuredCards
     : showDummy
       ? mockCreators.slice(0, 3).map((m) => ({ ...m }))
-      : [];
+      : realFeatured.map(toCard);
 
-  const trending = showDummy && featuredCards.length === 0 ? mockCreators.slice(3) : [];
+  const shownIds = new Set(realFeatured.map((c) => c.user_id));
+  const trending = showDummy && featuredCards.length === 0
+    ? mockCreators.slice(3)
+    : allCreators.filter((c) => !shownIds.has(c.user_id)).slice(0, 6).map(toCard);
 
   if (loading) return null;
 
