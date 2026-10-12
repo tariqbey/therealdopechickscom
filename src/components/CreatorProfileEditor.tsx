@@ -75,6 +75,9 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
   const [videoCallsEnabled, setVideoCallsEnabled] = useState(false);
   const [videoCallPrice, setVideoCallPrice] = useState(100);
   const [videoCallMinutes, setVideoCallMinutes] = useState(15);
+  const [videoCallBilling, setVideoCallBilling] = useState<"per_call" | "per_minute">("per_call");
+  const [videoCallMin, setVideoCallMin] = useState(5);
+  const [videoCallMax, setVideoCallMax] = useState(60);
   const [videoMessagesEnabled, setVideoMessagesEnabled] = useState(true);
 
   // State
@@ -85,7 +88,10 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
   const [analyzingImage, setAnalyzingImage] = useState(false);
   const [tiers, setTiers] = useState<TierRow[]>([]);
   const [loadingTiers, setLoadingTiers] = useState(true);
-  const [activeSection, setActiveSection] = useState<"profile" | "details" | "tiers" | "video">("profile");
+  const [activeSection, setActiveSection] = useState<"profile" | "details" | "tiers" | "video">(() => {
+    const s = new URLSearchParams(window.location.search).get("section");
+    return s === "video" || s === "tiers" || s === "details" ? s : "profile";
+  });
 
   // Crop modal state
   const [cropModalOpen, setCropModalOpen] = useState(false);
@@ -98,7 +104,7 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
     const loadExtended = async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("height, build, complexion, eye_color, hair_color, ethnicity, profession, interests, likes, measurements, location, zodiac_sign, video_calls_enabled, video_call_price_bread, video_call_minutes, video_messages_enabled, category" as any)
+        .select("height, build, complexion, eye_color, hair_color, ethnicity, profession, interests, likes, measurements, location, zodiac_sign, video_calls_enabled, video_call_price_bread, video_call_minutes, video_messages_enabled, category, video_call_billing, video_call_min_minutes, video_call_max_minutes" as any)
         .eq("user_id", user.id)
         .maybeSingle();
       if (data) {
@@ -119,6 +125,9 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
         setVideoCallsEnabled(!!d.video_calls_enabled);
         setVideoCallPrice(typeof d.video_call_price_bread === "number" ? d.video_call_price_bread : 100);
         setVideoCallMinutes(typeof d.video_call_minutes === "number" ? d.video_call_minutes : 15);
+        setVideoCallBilling(d.video_call_billing === "per_minute" ? "per_minute" : "per_call");
+        setVideoCallMin(typeof d.video_call_min_minutes === "number" ? d.video_call_min_minutes : 5);
+        setVideoCallMax(typeof d.video_call_max_minutes === "number" ? d.video_call_max_minutes : 60);
         setVideoMessagesEnabled(d.video_messages_enabled !== false);
       }
     };
@@ -251,6 +260,9 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
       video_calls_enabled: videoCallsEnabled,
       video_call_price_bread: Math.max(0, Math.round(videoCallPrice) || 0),
       video_call_minutes: Math.min(180, Math.max(1, Math.round(videoCallMinutes) || 15)),
+      video_call_billing: videoCallBilling,
+      video_call_min_minutes: Math.min(180, Math.max(1, Math.round(videoCallMin) || 5)),
+      video_call_max_minutes: Math.min(180, Math.max(Math.round(videoCallMin) || 5, Math.round(videoCallMax) || 60)),
       video_messages_enabled: videoMessagesEnabled,
     };
     const baseFields = {
@@ -695,28 +707,38 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
               <Switch checked={videoCallsEnabled} onCheckedChange={setVideoCallsEnabled} aria-label="Enable paid video calls" />
             </div>
 
-            <div className={`grid grid-cols-2 gap-3 transition-opacity ${videoCallsEnabled ? "" : "opacity-50 pointer-events-none"}`}>
+            <div className={`space-y-3 transition-opacity ${videoCallsEnabled ? "" : "opacity-50 pointer-events-none"}`}>
               <div>
-                <Label className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign className="h-3 w-3" /> Price per call (BREAD)</Label>
-                <Input
-                  type="number" min={0} max={100000} step={5}
-                  value={videoCallPrice}
-                  onChange={(e) => setVideoCallPrice(Number(e.target.value))}
-                  className="bg-muted border-border mt-1"
-                />
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  You keep 80% → <span className="text-gradient-gold font-semibold">{Math.floor(Math.max(0, videoCallPrice) * 0.8)} BREAD</span> per call. 0 = free.
-                </p>
+                <Label className="text-xs text-muted-foreground">How you charge</Label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  {([["per_call", "Flat price per call", "One price, fixed length"], ["per_minute", "Pay per minute", "Fan picks the length, pays per minute"]] as const).map(([k, l, h]) => (
+                    <button key={k} type="button" onClick={() => setVideoCallBilling(k)} className={`rounded-lg border p-3 text-left ${videoCallBilling === k ? "border-primary bg-primary/10" : "border-border bg-muted/40"}`}>
+                      <div className="text-sm font-semibold">{l}</div><div className="text-[11px] text-muted-foreground">{h}</div>
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div>
-                <Label className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" /> Call length (minutes)</Label>
-                <Input
-                  type="number" min={1} max={180} step={5}
-                  value={videoCallMinutes}
-                  onChange={(e) => setVideoCallMinutes(Number(e.target.value))}
-                  className="bg-muted border-border mt-1"
-                />
-                <p className="text-[11px] text-muted-foreground mt-1">The call ends automatically when time is up.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign className="h-3 w-3" /> {videoCallBilling === "per_minute" ? "Price per minute (BREAD)" : "Price per call (BREAD)"}</Label>
+                  <Input type="number" min={0} max={100000} step={videoCallBilling === "per_minute" ? 1 : 5} value={videoCallPrice} onChange={(e) => setVideoCallPrice(Number(e.target.value))} className="bg-muted border-border mt-1" />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    You keep 80% → <span className="text-gradient-gold font-semibold">{Math.floor(Math.max(0, videoCallPrice) * 0.8)} BREAD</span> {videoCallBilling === "per_minute" ? "per minute" : "per call"}. 0 = free.
+                  </p>
+                </div>
+                {videoCallBilling === "per_call" ? (
+                  <div>
+                    <Label className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" /> Call length (minutes)</Label>
+                    <Input type="number" min={1} max={180} step={5} value={videoCallMinutes} onChange={(e) => setVideoCallMinutes(Number(e.target.value))} className="bg-muted border-border mt-1" />
+                    <p className="text-[11px] text-muted-foreground mt-1">The call ends automatically when time is up.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><Label className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" /> Min minutes</Label><Input type="number" min={1} max={180} value={videoCallMin} onChange={(e) => setVideoCallMin(Number(e.target.value))} className="bg-muted border-border mt-1" /></div>
+                    <div><Label className="text-xs text-muted-foreground">Max minutes</Label><Input type="number" min={1} max={180} value={videoCallMax} onChange={(e) => setVideoCallMax(Number(e.target.value))} className="bg-muted border-border mt-1" /></div>
+                    <p className="col-span-2 text-[11px] text-muted-foreground">Fans pay for the length they pick up front; unused minutes are refunded when either side hangs up.</p>
+                  </div>
+                )}
               </div>
             </div>
 

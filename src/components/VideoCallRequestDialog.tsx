@@ -4,9 +4,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { CREATOR_SHARE, notifyUser, requestVideoCall, type CallProfile } from "@/lib/videoCalls";
+import { notifyUser, requestVideoCall, type CallProfile } from "@/lib/videoCalls";
 import BuyBreadModal from "@/components/BuyBreadModal";
 import { Clock, Loader2, Video, Wallet } from "lucide-react";
+import { useSetting } from "@/hooks/usePlatform";
 
 interface Props {
   open: boolean;
@@ -22,8 +23,14 @@ const VideoCallRequestDialog = ({ open, onOpenChange, creator }: Props) => {
   const [requesting, setRequesting] = useState(false);
   const [buyOpen, setBuyOpen] = useState(false);
 
-  const price = creator.video_call_price_bread ?? 0;
-  const minutes = creator.video_call_minutes ?? 15;
+  const payouts = useSetting("payouts");
+  const perMinute = creator.video_call_billing === "per_minute";
+  const minM = creator.video_call_min_minutes ?? 5;
+  const maxM = creator.video_call_max_minutes ?? 60;
+  const [chosen, setChosen] = useState(minM);
+  const rate = creator.video_call_price_bread ?? 0;
+  const minutes = perMinute ? chosen : (creator.video_call_minutes ?? 15);
+  const price = perMinute ? rate * chosen : rate;
   const balance = wallet?.balance ?? 0;
   const enough = balance >= price;
   const name = creator.display_name || "this creator";
@@ -32,7 +39,7 @@ const VideoCallRequestDialog = ({ open, onOpenChange, creator }: Props) => {
     if (!user) { navigate("/auth"); return; }
     setRequesting(true);
     try {
-      const res = await requestVideoCall(creator.user_id);
+      const res = await requestVideoCall(creator.user_id, perMinute ? chosen : undefined);
       await refreshWallet();
       if (!res.existing) {
         notifyUser(
@@ -69,19 +76,27 @@ const VideoCallRequestDialog = ({ open, onOpenChange, creator }: Props) => {
                 <Clock className="h-3 w-3" /> Length
               </div>
               <div className="text-lg font-black">{minutes} min</div>
+              {perMinute && (
+                <div className="mt-2">
+                  <input type="range" min={minM} max={maxM} step={1} value={chosen} onChange={(e) => setChosen(Number(e.target.value))} className="w-full accent-[#a855f7]" />
+                  <div className="flex justify-between text-[10px] text-muted-foreground"><span>{minM} min</span><span>{maxM} min</span></div>
+                </div>
+              )}
             </div>
             <div className="rounded-xl border border-border bg-muted/40 p-3">
               <div className="text-[11px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                 <Wallet className="h-3 w-3" /> Price
               </div>
               <div className="text-lg font-black text-gradient-gold">{price ? `${price} BREAD` : "Free"}</div>
+              {perMinute && rate > 0 && <div className="text-[11px] text-muted-foreground">{rate} BREAD / minute</div>}
             </div>
           </div>
 
           <p className="text-xs text-muted-foreground">
             Your balance: <span className="font-semibold text-foreground">{balance} BREAD</span>.
             {price > 0 && " You're charged now and fully refunded if the call is declined, cancelled, expires, or never connects."}
-            {price > 0 && ` ${name} earns ${Math.floor(price * CREATOR_SHARE)} BREAD.`}
+            {perMinute && price > 0 && " Hang up early and the unused minutes come straight back."}
+            {price > 0 && ` ${name} earns ${payouts.creator_share_pct}%.`}
           </p>
 
           <div className="flex gap-2 mt-2">

@@ -12,6 +12,10 @@ export interface VideoCall {
   bread_paid: number;
   creator_cut: number;
   minutes_allowed: number;
+  billing?: "per_call" | "per_minute";
+  price_per_minute?: number;
+  billed_minutes?: number | null;
+  refunded_credits?: number;
   refunded: boolean;
   created_at: string;
   expires_at: string;
@@ -30,7 +34,13 @@ export interface CallProfile {
   video_call_price_bread?: number;
   video_call_minutes?: number;
   video_messages_enabled?: boolean;
+  video_call_billing?: "per_call" | "per_minute";
+  video_call_min_minutes?: number;
+  video_call_max_minutes?: number;
+  last_seen_at?: string | null;
 }
+
+export const isOnline = (lastSeen?: string | null) => !!lastSeen && Date.now() - new Date(lastSeen).getTime() < 5 * 60 * 1000;
 
 export const CREATOR_SHARE = 0.8;
 
@@ -51,9 +61,9 @@ const rpc = async <T = any>(fn: string, args?: Record<string, unknown>): Promise
   return r as T;
 };
 
-export const requestVideoCall = (creatorId: string) =>
-  rpc<{ success: true; call_id: string; bread_paid?: number; existing?: boolean; status?: CallStatus }>(
-    "request_video_call", { p_creator_id: creatorId }
+export const requestVideoCall = (creatorId: string, minutes?: number) =>
+  rpc<{ success: true; call_id: string; bread_paid?: number; existing?: boolean; status?: CallStatus; minutes?: number }>(
+    "request_video_call", { p_creator_id: creatorId, p_minutes: minutes ?? null }
   );
 export const respondVideoCall = (callId: string, accept: boolean) =>
   rpc<{ success: true; status: CallStatus }>("respond_video_call", { p_call_id: callId, p_accept: accept });
@@ -74,7 +84,7 @@ export const fetchVideoCall = async (id: string): Promise<VideoCall | null> => {
 export const fetchCallProfile = async (userId: string): Promise<CallProfile | null> => {
   const { data } = await supabase
     .from("profiles")
-    .select("user_id, display_name, avatar_url, is_creator, video_calls_enabled, video_call_price_bread, video_call_minutes, video_messages_enabled")
+    .select("user_id, display_name, avatar_url, is_creator, video_calls_enabled, video_call_price_bread, video_call_minutes, video_messages_enabled, video_call_billing, video_call_min_minutes, video_call_max_minutes, last_seen_at")
     .eq("user_id", userId)
     .maybeSingle();
   return (data as unknown as CallProfile) || null;

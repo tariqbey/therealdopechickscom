@@ -169,7 +169,7 @@ const CallNotifications = () => {
                     {a.kind === "incoming" ? `${name} wants a video call` : `${name} accepted your call`}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {a.call.minutes_allowed} min
+                    {a.call.minutes_allowed} min{a.call.billing === "per_minute" && ` · ${a.call.price_per_minute}/min`}
                     {a.call.bread_paid > 0 && <> · <span className="text-gradient-gold font-semibold">{a.call.bread_paid} BREAD</span></>}
                     {a.kind === "incoming" && a.call.bread_paid > 0 && <> · you earn {Math.floor(a.call.bread_paid * 0.8)}</>}
                   </div>

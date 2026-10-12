@@ -268,6 +268,7 @@ const VideoCallPage = () => {
             with {name}
             {duration != null && <> · {formatDuration(duration)}</>}
             {call.refunded && call.bread_paid > 0 && <> · {call.bread_paid} BREAD refunded{isFan ? " to you" : ""}</>}
+            {!call.refunded && call.billing === "per_minute" && call.billed_minutes != null && <> · billed {call.billed_minutes} min{(call.refunded_credits || 0) > 0 && `, ${call.refunded_credits} BREAD back${isFan ? " to you" : ""}`}</>}
             {!call.refunded && call.status === "ended" && call.creator_cut > 0 && isCreator && <> · you earned {call.creator_cut} BREAD</>}
           </p>
           <div className="flex gap-2 justify-center">

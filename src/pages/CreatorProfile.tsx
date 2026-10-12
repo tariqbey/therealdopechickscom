@@ -20,6 +20,7 @@ import VideoCallRequestDialog from "@/components/VideoCallRequestDialog";
 import TipDialog from "@/components/TipDialog";
 import { useFeature } from "@/hooks/usePlatform";
 import { Gift } from "lucide-react";
+import { isOnline } from "@/lib/videoCalls";
 
 interface CreatorData {
   user_id: string;
@@ -33,6 +34,10 @@ interface CreatorData {
   video_call_price_bread?: number;
   video_call_minutes?: number;
   video_messages_enabled?: boolean;
+  video_call_billing?: "per_call" | "per_minute";
+  video_call_min_minutes?: number;
+  video_call_max_minutes?: number;
+  last_seen_at?: string | null;
 }
 
 interface TierData {
@@ -75,7 +80,10 @@ const dummyContent: { id: string; type: string; locked: boolean; img: string; li
 
 const CreatorProfile = () => {
   const { handle } = useParams<{ handle: string }>();
-  const [activeTab, setActiveTab] = useState<"all" | "photos" | "videos" | "manage" | "edit">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "photos" | "videos" | "manage" | "edit">(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    return t === "edit" || t === "manage" || t === "photos" || t === "videos" ? t : "all";
+  });
   const [subscribingTier, setSubscribingTier] = useState<string | null>(null);
   const [activeSubscription, setActiveSubscription] = useState<{ tier: string; subscriptionEnd: string } | null>(null);
   const [checkingSubscription, setCheckingSubscription] = useState(false);
@@ -266,6 +274,9 @@ const CreatorProfile = () => {
               <div className="flex-1 text-center md:text-left mt-2 md:mt-4">
                 <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3 mb-1">
                   <h1 className="text-2xl md:text-3xl font-black text-foreground tracking-tight">{displayName}</h1>
+                  {isOnline(creator?.last_seen_at) && (
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400"><span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" /> Online now</span>
+                  )}
                 </div>
                 <p className="text-sm text-muted-foreground mb-3 font-medium">@{(displayName).toLowerCase().replace(/\s+/g, "")}</p>
                 <p className="text-sm text-secondary-foreground max-w-lg leading-relaxed">{bio}</p>
@@ -316,7 +327,7 @@ const CreatorProfile = () => {
                   >
                     <Video className="h-4 w-4 mr-2" /> Video Call
                     {(creator.video_call_price_bread ?? 0) > 0 && (
-                      <span className="ml-1.5 text-xs opacity-85">· {creator.video_call_price_bread} BREAD</span>
+                      <span className="ml-1.5 text-xs opacity-85">· {creator.video_call_price_bread} BREAD{creator.video_call_billing === "per_minute" ? "/min" : ""}</span>
                     )}
                   </Button>
                 )}
@@ -520,6 +531,9 @@ const CreatorProfile = () => {
             avatar_url: creator.avatar_url,
             video_call_price_bread: creator.video_call_price_bread ?? 0,
             video_call_minutes: creator.video_call_minutes ?? 15,
+            video_call_billing: creator.video_call_billing,
+            video_call_min_minutes: creator.video_call_min_minutes,
+            video_call_max_minutes: creator.video_call_max_minutes,
           }}
         />
       )}

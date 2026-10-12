@@ -6,7 +6,7 @@ import Footer from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  User, Shield, Crown, CreditCard, Bell, ArrowRight, History, Banknote,
+  User, Shield, Crown, CreditCard, Bell, ArrowRight, History, Banknote, Video,
 } from "lucide-react";
 
 interface SettingsItem {
@@ -56,6 +56,14 @@ const Settings = () => {
       route: "/settings/tiers",
       show: isCreator,
       accent: "text-accent",
+    },
+    {
+      label: "Video Calls",
+      description: "Turn on paid FaceTime-style calls, set your price per call or per minute",
+      icon: Video,
+      route: `/creator/${user?.id}?tab=edit&section=video`,
+      show: isCreator,
+      accent: "text-primary",
     },
     {
       label: "Payouts",

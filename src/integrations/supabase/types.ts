@@ -348,6 +348,9 @@ export type Database = {
           last_seen_at: string | null
           timezone: string | null
           referral_url: string | null
+          video_call_billing: string
+          video_call_min_minutes: number
+          video_call_max_minutes: number
         }
         Insert: {
           age_verified?: boolean
@@ -383,6 +386,9 @@ export type Database = {
           last_seen_at?: string | null
           timezone?: string | null
           referral_url?: string | null
+          video_call_billing?: string
+          video_call_min_minutes?: number
+          video_call_max_minutes?: number
         }
         Update: {
           age_verified?: boolean
@@ -418,6 +424,9 @@ export type Database = {
           last_seen_at?: string | null
           timezone?: string | null
           referral_url?: string | null
+          video_call_billing?: string
+          video_call_min_minutes?: number
+          video_call_max_minutes?: number
         }
         Relationships: []
       }
