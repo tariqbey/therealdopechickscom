@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import CreatorCard from "./CreatorCard";
 import { Crown, TrendingUp, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useCategories } from "@/hooks/usePlatform";
 
 const mockCreators = [
   {
@@ -108,6 +109,8 @@ const FeaturedCreators = () => {
   const [showDummy, setShowDummy] = useState(true);
   const [featuredCreators, setFeaturedCreators] = useState<RealCreator[]>([]);
   const [allCreators, setAllCreators] = useState<RealCreator[]>([]);
+  const { categories } = useCategories();
+  const [activeCat, setActiveCat] = useState("All");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -219,14 +222,15 @@ const FeaturedCreators = () => {
         <SectionHeader icon={Sparkles} title="Browse Categories" subtitle="Explore" />
 
         <div className="flex flex-wrap gap-3">
-          {["All", "Glamour", "Fitness", "Cosplay", "Fantasy", "Artistic", "Lifestyle", "AI Generated", "Exclusive"].map(
+          {["All", ...categories.map((c) => c.name)].map(
             (cat) => (
               <motion.button
                 key={cat}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
+                onClick={() => setActiveCat(cat)}
                 className={`px-5 py-2 rounded-full text-sm font-medium border transition-colors ${
-                  cat === "All"
+                  cat === activeCat
                     ? "bg-gradient-purple text-primary-foreground border-transparent"
                     : "border-border text-muted-foreground hover:text-foreground hover:border-primary/30"
                 }`}

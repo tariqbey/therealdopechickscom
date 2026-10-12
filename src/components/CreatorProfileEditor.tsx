@@ -9,6 +9,7 @@ import {
   Crown, Eye, Wand2, MapPin, Briefcase, Heart, Ruler, User2, Video, Clock, Camera as CameraIcon,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { useCategories } from "@/hooks/usePlatform";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -67,6 +68,8 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
   const [measurements, setMeasurements] = useState("");
   const [location, setLocation] = useState("");
   const [zodiacSign, setZodiacSign] = useState("");
+  const [category, setCategory] = useState("");
+  const { categories } = useCategories();
 
   // Calls & video messages
   const [videoCallsEnabled, setVideoCallsEnabled] = useState(false);
@@ -95,7 +98,7 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
     const loadExtended = async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("height, build, complexion, eye_color, hair_color, ethnicity, profession, interests, likes, measurements, location, zodiac_sign, video_calls_enabled, video_call_price_bread, video_call_minutes, video_messages_enabled" as any)
+        .select("height, build, complexion, eye_color, hair_color, ethnicity, profession, interests, likes, measurements, location, zodiac_sign, video_calls_enabled, video_call_price_bread, video_call_minutes, video_messages_enabled, category" as any)
         .eq("user_id", user.id)
         .maybeSingle();
       if (data) {
@@ -112,6 +115,7 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
         setMeasurements(d.measurements || "");
         setLocation(d.location || "");
         setZodiacSign(d.zodiac_sign || "");
+        setCategory(d.category || "");
         setVideoCallsEnabled(!!d.video_calls_enabled);
         setVideoCallPrice(typeof d.video_call_price_bread === "number" ? d.video_call_price_bread : 100);
         setVideoCallMinutes(typeof d.video_call_minutes === "number" ? d.video_call_minutes : 15);
@@ -266,6 +270,7 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
         measurements: measurements || null,
         location: location || null,
         zodiac_sign: zodiacSign || null,
+        category: category || null,
     };
 
     let { error } = await supabase
@@ -446,6 +451,16 @@ const CreatorProfileEditor = ({ onSaved }: CreatorProfileEditorProps) => {
           <div>
             <Label className="text-xs text-muted-foreground flex items-center gap-1"><Heart className="h-3 w-3" /> Interests (comma-separated)</Label>
             <Input value={interests} onChange={(e) => setInterests(e.target.value)} placeholder="e.g. Fitness, Travel, Music, Art" className="bg-muted border-border mt-1" />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Category</Label>
+            <Select value={category || "none"} onValueChange={(v) => setCategory(v === "none" ? "" : v)}>
+              <SelectTrigger className="bg-muted border-border mt-1"><SelectValue placeholder="Pick a category" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No category</SelectItem>
+                {categories.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label className="text-xs text-muted-foreground">Likes (comma-separated)</Label>

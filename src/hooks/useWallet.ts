@@ -1,6 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { usePriceOptions } from "@/hooks/usePlatform";
 
 export const BREAD_PACKAGES = [
   { id: "50", name: "50 BREAD", amount: 50, price: "$4.99", priceId: "price_1SyE9VKb1BapFa4iRNnwQbdY", popular: false },
@@ -10,6 +11,18 @@ export const BREAD_PACKAGES = [
   { id: "1000", name: "1,000 BREAD", amount: 1000, price: "$75.00", priceId: "price_1SyEB7Kb1BapFa4iSthPX9Cb", popular: false },
   { id: "2500", name: "2,500 BREAD", amount: 2500, price: "$175.00", priceId: "price_1SyEBHKb1BapFa4iDE4O5ujE", popular: false },
 ] as const;
+
+export interface BreadPackage { id: string; name: string; amount: number; price: string; priceId: string; popular: boolean }
+
+/** Deposit packages from Admin → Settings → Pricing, falling back to the built-in list. */
+export const useBreadPackages = (): BreadPackage[] => {
+  const { options, loading } = usePriceOptions("deposit");
+  const fromDb = options.filter((o) => o.stripe_price_id).map((o) => ({
+    id: o.id, name: o.label || `${o.credits} BREAD`, amount: Number(o.credits),
+    price: `$${((o.price_cents || 0) / 100).toFixed(2)}`, priceId: o.stripe_price_id as string, popular: o.is_popular,
+  }));
+  return !loading && fromDb.length > 0 ? fromDb : (BREAD_PACKAGES as unknown as BreadPackage[]);
+};
 
 export const useWallet = () => {
   const { wallet, refreshWallet, session } = useAuth();

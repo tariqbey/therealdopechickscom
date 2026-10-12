@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useWallet, BREAD_PACKAGES } from "@/hooks/useWallet";
+import { useWallet, useBreadPackages } from "@/hooks/useWallet";
 import { Button } from "@/components/ui/button";
 import { Coins, ShoppingCart, X } from "lucide-react";
 
@@ -12,6 +12,7 @@ interface BuyBreadModalProps {
 const BuyBreadModal = ({ open, onClose }: BuyBreadModalProps) => {
   const { user } = useAuth();
   const { balance, purchaseBread } = useWallet();
+  const BREAD_PACKAGES = useBreadPackages();
   const [loading, setLoading] = useState<string | null>(null);
 
   if (!open) return null;

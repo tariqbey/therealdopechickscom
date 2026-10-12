@@ -16,6 +16,8 @@ import { Upload, X, Loader2, Image as ImageIcon, Video, Library } from "lucide-r
 import { useToast } from "@/hooks/use-toast";
 import LibraryPicker from "@/components/LibraryPicker";
 import PostEditModal from "@/components/PostEditModal";
+import { useFeature } from "@/hooks/usePlatform";
+import { Pin } from "lucide-react";
 import EmojiToolbar from "@/components/EmojiToolbar";
 
 interface CreatorPost {
@@ -29,6 +31,9 @@ interface CreatorPost {
   min_tier: string | null;
   likes_count: number;
   created_at: string;
+  status?: "pending" | "approved" | "rejected";
+  review_note?: string | null;
+  is_pinned?: boolean;
 }
 
 interface ContentManagerProps {
@@ -39,6 +44,8 @@ interface ContentManagerProps {
 const CreatorContentManager = ({ posts, onRefresh }: ContentManagerProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const verifyPosts = useFeature("post_verification");
+  const pinsOn = useFeature("pinned_posts");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [title, setTitle] = useState("");
@@ -86,6 +93,7 @@ const CreatorContentManager = ({ posts, onRefresh }: ContentManagerProps) => {
         media_type: mediaType,
         is_locked: isLocked,
         min_tier: isLocked ? minTier : null,
+        status: verifyPosts ? "pending" : "approved",
       } as any);
 
     if (insertError) {
@@ -98,6 +106,12 @@ const CreatorContentManager = ({ posts, onRefresh }: ContentManagerProps) => {
     }
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const togglePin = async (post: CreatorPost) => {
+    const { error } = await supabase.from("creator_posts" as any).update({ is_pinned: !post.is_pinned } as any).eq("id", post.id);
+    if (error) { toast({ title: "Couldn't update pin", description: error.message, variant: "destructive" }); return; }
+    onRefresh();
   };
 
   return (
@@ -184,6 +198,7 @@ const CreatorContentManager = ({ posts, onRefresh }: ContentManagerProps) => {
                   media_type: item.type,
                   is_locked: isLocked,
                   min_tier: isLocked ? minTier : null,
+                  status: verifyPosts ? "pending" : "approved",
                 } as any);
               if (!error) added++;
             }
@@ -210,6 +225,17 @@ const CreatorContentManager = ({ posts, onRefresh }: ContentManagerProps) => {
                   <video src={post.media_url} className="w-full h-full object-cover" muted />
                 ) : (
                   <img src={post.media_url} alt={post.title || ""} className="w-full h-full object-cover" />
+                )}
+                {post.status === "pending" && <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-amber-500/90 text-black text-[10px] font-bold">Awaiting review</span>}
+                {post.status === "rejected" && <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-red-600/90 text-white text-[10px] font-bold" title={post.review_note || ""}>Rejected</span>}
+                {pinsOn && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); togglePin(post); }}
+                    title={post.is_pinned ? "Unpin" : "Pin to top"}
+                    className={`absolute top-1.5 right-1.5 h-7 w-7 rounded-full flex items-center justify-center ${post.is_pinned ? "bg-primary text-primary-foreground" : "bg-black/60 text-white opacity-0 group-hover:opacity-100"}`}
+                  >
+                    <Pin className="h-3.5 w-3.5" />
+                  </button>
                 )}
                 <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
                   <div className="flex items-center gap-1 text-xs">

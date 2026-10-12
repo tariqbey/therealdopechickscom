@@ -2,17 +2,18 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Coins, Zap, Shield } from "lucide-react";
-import { useWallet, BREAD_PACKAGES } from "@/hooks/useWallet";
+import { useWallet, useBreadPackages, type BreadPackage } from "@/hooks/useWallet";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
 const BreadSection = () => {
   const { purchaseBread } = useWallet();
+  const BREAD_PACKAGES = useBreadPackages();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState<string | null>(null);
 
-  const handleBuy = async (pkg: typeof BREAD_PACKAGES[number]) => {
+  const handleBuy = async (pkg: BreadPackage) => {
     if (!user) {
       navigate("/auth");
       return;

@@ -70,6 +70,9 @@ export type Database = {
           id: string
           is_locked: boolean
           likes_count: number
+          status: string
+          review_note: string | null
+          is_pinned: boolean
           media_type: string
           media_url: string
           min_tier: string | null
@@ -83,6 +86,9 @@ export type Database = {
           id?: string
           is_locked?: boolean
           likes_count?: number
+          status?: string
+          review_note?: string | null
+          is_pinned?: boolean
           media_type?: string
           media_url: string
           min_tier?: string | null
@@ -96,6 +102,9 @@ export type Database = {
           id?: string
           is_locked?: boolean
           likes_count?: number
+          status?: string
+          review_note?: string | null
+          is_pinned?: boolean
           media_type?: string
           media_url?: string
           min_tier?: string | null
@@ -336,6 +345,9 @@ export type Database = {
           video_call_price_bread: number
           video_call_minutes: number
           video_messages_enabled: boolean
+          last_seen_at: string | null
+          timezone: string | null
+          referral_url: string | null
         }
         Insert: {
           age_verified?: boolean
@@ -368,6 +380,9 @@ export type Database = {
           video_call_price_bread?: number
           video_call_minutes?: number
           video_messages_enabled?: boolean
+          last_seen_at?: string | null
+          timezone?: string | null
+          referral_url?: string | null
         }
         Update: {
           age_verified?: boolean
@@ -400,6 +415,9 @@ export type Database = {
           video_call_price_bread?: number
           video_call_minutes?: number
           video_messages_enabled?: boolean
+          last_seen_at?: string | null
+          timezone?: string | null
+          referral_url?: string | null
         }
         Relationships: []
       }

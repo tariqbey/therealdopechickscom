@@ -20,6 +20,9 @@ import CreatorTiers from "./pages/CreatorTiers";
 import Messages from "./pages/Messages";
 import TransactionHistory from "./pages/TransactionHistory";
 import VideoCallPage from "./pages/VideoCallPage";
+import SitePage from "./pages/SitePage";
+import CreatorPayouts from "./pages/CreatorPayouts";
+import PlatformChrome from "./components/PlatformChrome";
 import NotFound from "./pages/NotFound";
 import PWAInstallBanner from "./components/PWAInstallBanner";
 import ImpersonationBar from "./components/ImpersonationBar";
@@ -51,12 +54,15 @@ const App = () => (
             <Route path="/messages" element={<Messages />} />
             <Route path="/transactions" element={<TransactionHistory />} />
             <Route path="/call/:callId" element={<VideoCallPage />} />
+            <Route path="/p/:slug" element={<SitePage />} />
+            <Route path="/settings/payouts" element={<CreatorPayouts />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
           <PWAInstallBanner />
           <ImpersonationBar />
           <CallNotifications />
+          <PlatformChrome />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

@@ -17,6 +17,9 @@ import PostEditModal from "@/components/PostEditModal";
 import VRVideoGallery from "@/components/VRVideoGallery";
 import VRVideoManager from "@/components/VRVideoManager";
 import VideoCallRequestDialog from "@/components/VideoCallRequestDialog";
+import TipDialog from "@/components/TipDialog";
+import { useFeature } from "@/hooks/usePlatform";
+import { Gift } from "lucide-react";
 
 interface CreatorData {
   user_id: string;
@@ -51,6 +54,9 @@ interface CreatorPost {
   min_tier: string | null;
   likes_count: number;
   created_at: string;
+  status?: "pending" | "approved" | "rejected";
+  review_note?: string | null;
+  is_pinned?: boolean;
 }
 
 const tierColors: Record<string, string> = {
@@ -80,6 +86,8 @@ const CreatorProfile = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [editingPost, setEditingPost] = useState<CreatorPost | null>(null);
   const [callDialogOpen, setCallDialogOpen] = useState(false);
+  const [tipOpen, setTipOpen] = useState(false);
+  const tippingOn = useFeature("tipping");
   const { user, profile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -147,6 +155,7 @@ const CreatorProfile = () => {
       .from("creator_posts" as any)
       .select("*")
       .eq("creator_id", creatorUserId)
+      .order("is_pinned", { ascending: false })
       .order("created_at", { ascending: false });
     setPosts((data as unknown as CreatorPost[]) || []);
   };
@@ -194,7 +203,9 @@ const CreatorProfile = () => {
   };
 
   // Build content grid from real posts + optional dummy
-  const contentItems = posts.map((p) => ({
+  // Fans only see approved posts; the owner and admins see everything (with status badges in Manage).
+  const visiblePosts = canManagePosts ? posts : posts.filter((p) => !p.status || p.status === "approved");
+  const contentItems = visiblePosts.map((p) => ({
     id: p.id,
     type: p.media_type as "photo" | "video",
     locked: p.is_locked,
@@ -288,6 +299,15 @@ const CreatorProfile = () => {
                 <Button variant="outline" size="icon" className="rounded-full border-border/60 text-muted-foreground hover:text-foreground hover:border-destructive/40 transition-colors">
                   <Heart className="h-4 w-4" />
                 </Button>
+                {tippingOn && !isOwnProfile && (
+                  <Button
+                    variant="outline"
+                    className="rounded-full border-accent/40 text-accent hover:bg-accent/10 font-bold px-4"
+                    onClick={() => (user ? setTipOpen(true) : navigate("/auth"))}
+                  >
+                    <Gift className="h-4 w-4 mr-2" /> Tip
+                  </Button>
+                )}
                 {creator?.video_calls_enabled && !isOwnProfile && (
                   <Button
                     className="rounded-full bg-gradient-purple text-primary-foreground font-bold hover:opacity-90 px-5 glow-purple"
@@ -502,6 +522,10 @@ const CreatorProfile = () => {
             video_call_minutes: creator.video_call_minutes ?? 15,
           }}
         />
+      )}
+
+      {creator && !isOwnProfile && (
+        <TipDialog open={tipOpen} onOpenChange={setTipOpen} creatorId={creator.user_id} creatorName={creator.display_name || "this creator"} />
       )}
 
       <Footer />

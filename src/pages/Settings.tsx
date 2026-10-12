@@ -6,7 +6,7 @@ import Footer from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  User, Shield, Crown, CreditCard, Bell, ArrowRight, History,
+  User, Shield, Crown, CreditCard, Bell, ArrowRight, History, Banknote,
 } from "lucide-react";
 
 interface SettingsItem {
@@ -54,6 +54,14 @@ const Settings = () => {
       description: "Manage your Bronze, Silver, and Gold pricing",
       icon: Crown,
       route: "/settings/tiers",
+      show: isCreator,
+      accent: "text-accent",
+    },
+    {
+      label: "Payouts",
+      description: "Cash out your earnings and track payout requests",
+      icon: Banknote,
+      route: "/settings/payouts",
       show: isCreator,
       accent: "text-accent",
     },
