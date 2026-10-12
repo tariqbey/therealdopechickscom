@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import {
-  BarChart3, Blocks, Crown, DollarSign, FileText, Headset, Home, Inbox, LogOut, Megaphone, Menu, Receipt, Settings, Shield, ShieldCheck, Sparkles, Users, X,
+  BarChart3, Blocks, BookOpen, Crown, DollarSign, FileText, Headset, Home, Inbox, LogOut, Megaphone, Menu, Receipt, Settings, Shield, ShieldCheck, Sparkles, Users, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/logo.png";
@@ -22,6 +22,7 @@ import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
 import AdminSecurityTab from "@/components/admin/AdminSecurityTab";
 import AdminFeaturedTab from "@/components/admin/AdminFeaturedTab";
 import AdminVRTab from "@/components/admin/AdminVRTab";
+import UserGuide from "@/components/UserGuide";
 import { useSetting } from "@/hooks/usePlatform";
 
 const NAV: { id: string; label: string; icon: React.ComponentType<{ className?: string }>; group?: string }[] = [
@@ -39,6 +40,7 @@ const NAV: { id: string; label: string; icon: React.ComponentType<{ className?: 
   { id: "analytics", label: "Analytics", icon: DollarSign },
   { id: "security", label: "Security", icon: Shield },
   { id: "settings", label: "Settings", icon: Settings },
+  { id: "guide", label: "User Guide", icon: BookOpen },
 ];
 
 const AdminDashboard = () => {
@@ -117,6 +119,7 @@ const AdminDashboard = () => {
           {activeTab === "analytics" && <AdminAnalyticsTab />}
           {activeTab === "security" && <AdminSecurityTab />}
           {activeTab === "settings" && <AdminSettingsTab />}
+          {activeTab === "guide" && <UserGuide />}
         </motion.div>
       </main>
     </div>

@@ -22,6 +22,7 @@ import TransactionHistory from "./pages/TransactionHistory";
 import VideoCallPage from "./pages/VideoCallPage";
 import SitePage from "./pages/SitePage";
 import CreatorPayouts from "./pages/CreatorPayouts";
+import GuidePage from "./pages/GuidePage";
 import PlatformChrome from "./components/PlatformChrome";
 import NotFound from "./pages/NotFound";
 import PWAInstallBanner from "./components/PWAInstallBanner";
@@ -56,6 +57,7 @@ const App = () => (
             <Route path="/call/:callId" element={<VideoCallPage />} />
             <Route path="/p/:slug" element={<SitePage />} />
             <Route path="/settings/payouts" element={<CreatorPayouts />} />
+            <Route path="/guide" element={<GuidePage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

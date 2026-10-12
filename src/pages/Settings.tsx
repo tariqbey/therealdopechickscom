@@ -6,7 +6,7 @@ import Footer from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  User, Shield, Crown, CreditCard, Bell, ArrowRight, History, Banknote, Video,
+  User, Shield, Crown, CreditCard, Bell, ArrowRight, History, Banknote, Video, BookOpen,
 } from "lucide-react";
 
 interface SettingsItem {
@@ -85,6 +85,13 @@ const Settings = () => {
       description: "Browse your AI generation history",
       icon: History,
       route: "/history",
+      show: true,
+    },
+    {
+      label: "Help & Guide",
+      description: "How everything works: BREAD, subscriptions, VR, calls, tips, payouts",
+      icon: BookOpen,
+      route: "/guide",
       show: true,
     },
     {
